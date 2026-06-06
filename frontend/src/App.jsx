@@ -4,8 +4,10 @@ import StatsBar      from './components/StatsBar'
 import PipelineBar   from './components/PipelineBar'
 import RecordsTable  from './components/RecordsTable'
 import DetailPanel   from './components/DetailPanel'
+import LoginScreen   from './components/LoginScreen'
 
 export default function App() {
+  const [authed,         setAuthed]         = useState(false)
   const [stats,          setStats]          = useState(null)
   const [records,        setRecords]        = useState([])
   const [selectedRecord, setSelectedRecord] = useState(null)
@@ -54,6 +56,8 @@ export default function App() {
   const selectedId = selectedRecord?.req_id || selectedRecord?.email_id || selectedRecord?.id
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  if (!authed) return <LoginScreen onAuth={() => setAuthed(true)} />
+
   return (
     <div className="h-screen flex flex-col bg-bg text-gray-200 font-sans overflow-hidden">
 
