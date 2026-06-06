@@ -849,4 +849,44 @@ services:
 - Endpoints it will consume: `/records`, `/stats`, `/records/{id}`
 - To discuss: hosting (Vercel/Netlify), authentication for dashboard access
 
+---
+
+## UPDATE: 2026-06-06 (Session 7) — Bug fix + Phase 14d React dashboard
+
+### Decisions & agreements
+
+- **End-of-session rule established:** last Claude Code prompt every session must update MAILCRM_MASTER.md and then exit
+- Master file must capture everything — not just code changes, but all decisions, directions, agreements, blockers, and business discussions — so any future session can start from full context just by reading the file
+- When Saral types `exit` in Claude.ai chat, Claude will always generate the final Claude Code prompt automatically
+
+### Bug fix — followup_matcher.py (Phase 14b)
+
+- **Root cause 1:** `Fw:` prefix was being treated as a follow-up signal — but Saral forwards all emails, so every email was matching. Fixed: removed `Fw:`/`Fwd:` from prefix check; only `Re:` is now a follow-up signal
+- **Root cause 2:** `is_followup_email()` was receiving the raw Outlook blob (with forwarding headers) instead of the cleaned body from `preprocess_email()` — fixed in `run_parser.py`
+- Body keyword threshold raised from 3 → 5; match score threshold raised from 40 → 60
+- NULL rows 31–34 and 45 deleted from Supabase; Row 46 confirmed fully populated — fix verified
+
+### Phase 14d — React dashboard
+
+- `frontend/` folder created at project root using Vite + TailwindCSS
+- Dark terminal aesthetic: bg `#0d0f12`, accent `#00d4aa`, IBM Plex Mono + DM Sans fonts
+- Components built: `StatsBar`, `PipelineBar`, `RecordsTable`, `DetailPanel`, `useApi` hook
+- Connects to `https://mailcrm-api.onrender.com` — endpoints: `/records`, `/stats`, `/records/{id}`, `/run-pipeline`
+- Clean build confirmed locally (`npm run build` — 2.15s, 0 errors)
+- Committed and pushed to GitHub (`saralprabhat1/mailcrm-api`, commits `d3ecf89` + `270ce01`)
+
+### Vercel deploy — attempted, incomplete
+
+- Vercel account created (Hobby plan, Google OAuth, username `saralprabhat1`)
+- Internet instability + laptop restart prevented completion
+- **Resume next session:** go to vercel.com → Add New → Project → import `saralprabhat1/mailcrm-api` → Edit Root Directory → select `frontend` → Framework: Vite → Deploy
+
+### Next session start point
+
+1. Restart laptop, open VS Code, run `claude` in terminal
+2. Read `MAILCRM_MASTER.md`
+3. Open vercel.com and complete the deploy
+4. Once live URL confirmed — set up UptimeRobot to ping Render API every 5 mins (Phase 14e)
+5. Then Phase 14f: add basic auth to the React dashboard (simple password gate before sharing with anyone)
+
 ### CURRENT PHASE: 14d — React dashboard (next session)
