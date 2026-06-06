@@ -889,4 +889,33 @@ services:
 4. Once live URL confirmed — set up UptimeRobot to ping Render API every 5 mins (Phase 14e)
 5. Then Phase 14f: add basic auth to the React dashboard (simple password gate before sharing with anyone)
 
+---
+
+## UPDATE: 2026-06-06 (Session 8) — Phase 14d COMPLETE
+
+### Phase 14d — Vercel deploy successful
+- Live dashboard URL: https://mailcrm-api.vercel.app
+- Vercel account: saralprabhat1 (Hobby plan, Google OAuth)
+- Repo: saralprabhat1/mailcrm-api, branch: main, commit: d3ecf89
+- Root directory: frontend | Framework: Vite (auto-detected)
+- Dashboard confirmed loading with live data from Supabase via Render API
+- Total Records = 1 (correct — only 1 clean verified record in Supabase post bug-fix)
+- Some fields showing — (NULL issue on older records, not a new problem)
+
+### Network issue resolved
+- vercel.com and netlify.com were unreachable (ISP block, Meerut)
+- Fixed by changing DNS to Cloudflare (1.1.1.1 / 1.0.0.1) via netsh in admin CMD
+- Interface name: "Wi-Fi 2"
+
+### Full stack now live end-to-end
+Outlook → Groq → Supabase → Render API → Vercel → Browser
+
+### CURRENT PHASE: 14e — UptimeRobot setup (keep Render API alive)
+
+### Next session start point
+1. Read MAILCRM_MASTER.md
+2. Go to uptimerobot.com → create free monitor → ping https://mailcrm-api.onrender.com every 5 mins (Phase 14e)
+3. Phase 14f: add basic password gate to React dashboard before sharing with anyone
+4. Then run pipeline from VS Code to populate more records
+
 ### CURRENT PHASE: 14d — React dashboard (next session)
