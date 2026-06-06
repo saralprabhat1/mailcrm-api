@@ -201,7 +201,9 @@ def run_pipeline(max_emails=5):
                     continue    # skip to the next email — don't extract or store
 
             # --- ROUTE: is this a follow-up or a new requirement? ---
-            followup = is_followup_email(subject, body)
+            # Use the preprocessed body (forwarding headers stripped) so that
+            # keyword matching sees the core message, not Saral's Fw: wrapper.
+            followup = is_followup_email(subject, email.get("body_content", body))
 
             if followup:
                 print("         Type: FOLLOW-UP — searching for matching record...")

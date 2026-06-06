@@ -24,20 +24,31 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# Minimum score out of 100 to accept a match
-# 40 means at least a strong subject overlap OR domain + role signals together
-MATCH_THRESHOLD = 40
+# Minimum score out of 100 to accept a match.
+# Raised from 40 → 60: a new-req email from the same sender domain can score
+# 25 (domain) + 15 (client name) = 40, which is enough to spuriously match an
+# existing record. Requiring 60 means at least subject overlap + domain, or
+# domain + designation + client — a genuinely high-confidence match.
+MATCH_THRESHOLD = 60
 
-# Subject prefixes that signal this is a reply or forward — not a fresh requirement
-FOLLOWUP_PREFIXES = ["re:", "fw:", "fwd:", "response:", "reply:"]
+# Subject prefixes that reliably signal a CLIENT REPLY to an existing thread.
+# "fw:" and "fwd:" are intentionally excluded: in this pipeline every email is
+# forwarded by Saral from his inbox, so Fw: is always present and tells us
+# nothing about whether the email is a new requirement or a follow-up.
+# Only "re:" means a client actually replied to an ongoing thread.
+FOLLOWUP_PREFIXES = ["re:", "response:", "reply:"]
 
-# Body phrases that strongly suggest a follow-up rather than a new requirement
-# We require at least 3 hits before classifying body-only as a follow-up
+# Body phrases that are SPECIFIC to follow-up emails.
+# Deliberately excludes generic terms ("cv", "resume", "profile", "regarding",
+# "please find attached", "update", "offer") that routinely appear in new
+# requirement emails and caused false-positive follow-up detection.
+# We require at least 5 hits before classifying body-only as a follow-up.
 FOLLOWUP_BODY_KEYWORDS = [
-    "cv", "resume", "profile", "shortlist", "interview", "selected",
-    "mobiliz", "offer", "cancell", "on hold", "feedback", "update",
-    "please find attached", "as discussed", "further to", "regarding",
-    "following our", "following up", "per our", "as requested",
+    "shortlist", "interview", "selected",
+    "mobiliz", "cancell", "on hold",
+    "as discussed", "further to",
+    "following our", "following up",
+    "per our conversation", "as requested",
 ]
 
 
@@ -51,8 +62,8 @@ def is_followup_email(subject, body_text=""):
 
     We check two signals:
       1. Subject starts with Re:/Fw:/Fwd: — the most reliable signal
-      2. Body contains 3+ follow-up phrases — catches plain-text updates
-         that weren't sent as a reply thread
+      2. Body contains 5+ follow-up-specific phrases — catches plain-text updates
+         that weren't sent as a reply thread (high bar to avoid false positives)
 
     Parameters:
         subject   — email subject line (string)
@@ -68,10 +79,13 @@ def is_followup_email(subject, body_text=""):
         if subj_lower.startswith(prefix):
             return True
 
-    # Check body for multiple follow-up phrases
+    # Check body for multiple follow-up phrases.
+    # Threshold is 5 (not 3) because the keyword list is narrow — 5 hits from
+    # follow-up-specific phrases is a strong signal; 3 was too easy to reach
+    # with generic language in new requirement emails.
     body_lower   = body_text.lower()
     keyword_hits = sum(1 for kw in FOLLOWUP_BODY_KEYWORDS if kw in body_lower)
-    if keyword_hits >= 3:
+    if keyword_hits >= 5:
         return True
 
     return False
