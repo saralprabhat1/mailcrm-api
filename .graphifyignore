@@ -1,0 +1,23 @@
+# Sensitive / auth
+.env
+data/.token_cache.bin
+*.bin
+
+# Live data files
+data/crm_data.xlsx
+data/*.xlsx
+data/*.csv
+
+# Python noise
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# VS Code
+.vscode/
+
+# Graphify output
+graphify-out/manifest.json
+graphify-out/cost.json
