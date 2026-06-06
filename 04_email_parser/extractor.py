@@ -51,6 +51,19 @@ GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL   = "llama-3.3-70b-versatile"
 
 # ---------------------------------------------------------------------------
+# INTERNAL COMPANY EXCLUSION LIST
+#
+# If the AI extracts a client_name that matches any entry here, it is nulled
+# out so the AI's answer doesn't pollute the CRM with internal/partner names.
+# Matching is case-insensitive. Add full names or recognisable prefixes.
+# ---------------------------------------------------------------------------
+INTERNAL_COMPANY_NAMES = {
+    "aldhahi get consultants company ltd",
+    "aldhahi get consultants",
+    "aldhahi",
+}
+
+# ---------------------------------------------------------------------------
 # SYSTEM PROMPT — instructs the AI on ALL fields and output structure
 # ---------------------------------------------------------------------------
 
@@ -306,7 +319,7 @@ def build_multi_role_rows(email_record, extracted_fields):
             "am_name":          "",             # Filled manually by AM
 
             # ---- Section 2: Client Information -------------------------------
-            "client_name":      _clean(extracted_fields.get("client_name")),
+            "client_name":      _filter_client_name(_clean(extracted_fields.get("client_name"))),
             "client_country":   _clean(extracted_fields.get("client_country")),
             "client_sector":    _clean(extracted_fields.get("client_sector")),
             "contact_person":   _clean(extracted_fields.get("contact_person")),
@@ -393,12 +406,29 @@ def build_crm_row(email_record, extracted_fields):
 
 
 # ---------------------------------------------------------------------------
-# HELPER
+# HELPERS
 # ---------------------------------------------------------------------------
 
 def _clean(value):
     """Convert None → empty string. Keeps all other values as-is."""
     return "" if value is None else value
+
+
+def _filter_client_name(name: str) -> str:
+    """
+    Return empty string if name matches an internal/partner company.
+    Matching is case-insensitive; leading/trailing whitespace is ignored.
+    """
+    if not name:
+        return name
+    normalised = " ".join(name.lower().split())
+    for excluded in INTERNAL_COMPANY_NAMES:
+        exc = " ".join(excluded.lower().split())
+        # Exact match OR the extracted name starts with the exclusion entry
+        # (handles abbreviations like "ALDHAHI" matching the full legal name)
+        if normalised == exc or normalised.startswith(exc):
+            return ""
+    return name
 
 
 # ---------------------------------------------------------------------------
