@@ -797,3 +797,56 @@ services:
 - Commit: `5587849` — 31 files, 8,184 insertions
 
 ### CURRENT PHASE: 14c — code on GitHub, Render connection next
+
+## END-OF-DAY SUMMARY: 2026-06-06 — Full day recap
+
+### Phase 14a — Supabase live
+- Org: MailCRM | Project: `get-crm` | Region: Mumbai (ap-south-1)
+- Table: `crm_requirements` — 25 columns, RLS enabled
+- Auth: service role key (bypasses RLS for server-side writes)
+- Both write paths confirmed working:
+  - New records: `save_records()` → `save_to_supabase()` upsert
+  - Follow-up updates: `update_record()` → Supabase upsert (insert if new, patch if exists)
+- Field mapping fixed: `client_name`, `designation`, `email_summary`, `next_action`, `category`, `llm_confidence` all correctly written
+
+### Phase 14b — FastAPI backend
+- File: `api/main.py`
+- 5 endpoints:
+  | Endpoint | Method | Description |
+  |---|---|---|
+  | `/` | GET | Health check |
+  | `/records` | GET | All CRM records, newest first |
+  | `/records/{email_id}` | GET | Single record by REQ ID |
+  | `/stats` | GET | Totals, status breakdown, top PSLs, last-7-days count |
+  | `/run-pipeline` | POST | Trigger email pipeline (max 5 emails) |
+- CORS enabled (allow_origins=["*"])
+- Supabase client initialised at startup using `SUPABASE_SERVICE_KEY`
+
+### Phase 14c — Render deployment
+- Live API: https://mailcrm-api.onrender.com
+- GitHub repo: https://github.com/saralprabhat1/mailcrm-api
+- Runtime: Python 3, Render free tier
+- Config: `render.yaml` at project root (auto-detected by Render)
+- Env vars set in Render dashboard: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `GROQ_API_KEY`
+- Git installed (v2.54.0 via winget) — was missing from system
+- 31 source files committed; secrets, data files, raw emails excluded
+
+### Rebrand — complete
+- Product name: **MailCRM** (was internally GET Global CRM)
+- All `GET Global` references removed from all `.py` files and prompts
+- System prompts now generic: "an oil & gas manpower consultancy"
+- Master file renamed: `GET_CRM_MASTER_FINAL.md` → `MAILCRM_MASTER.md`
+
+### Known issue — fix next session
+**Problem:** Supabase `crm_requirements` table showing NULL fields on recent records.
+**Root cause:** `is_followup_email()` in `05_classifier/followup_matcher.py` is incorrectly classifying new requirement emails as follow-ups. They get routed to `update_record()` (which patches existing rows) instead of `save_records()` (which creates new rows with all fields).
+**Fix:** Tighten the follow-up detection logic in `followup_matcher.py` — likely the subject-line matching or match-score threshold is too loose, causing false positives.
+**File to fix:** `05_classifier/followup_matcher.py` → `is_followup_email()` and/or match score threshold
+
+### Next: Phase 14d — React dashboard frontend
+- Goal: replace Streamlit dashboard with a React web app reading from the Render API
+- Stack: React + TailwindCSS, reading from `https://mailcrm-api.onrender.com`
+- Endpoints it will consume: `/records`, `/stats`, `/records/{id}`
+- To discuss: hosting (Vercel/Netlify), authentication for dashboard access
+
+### CURRENT PHASE: 14d — React dashboard (next session)
