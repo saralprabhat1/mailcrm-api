@@ -66,8 +66,7 @@ def save_to_supabase(record: dict):
         conf = 0.0
 
     supabase_record = {
-        # --- Identity — use req_id (REQ-YYYYMMDD-HASH-01) as the stable conflict key.
-        # Falls back to raw email_id for any legacy records that pre-date req_id.
+        # --- Identity — req_id stored in email_id column (upsert conflict key) ---
         "email_id":          record.get("req_id") or record.get("email_id", ""),
         "received_date":     record.get("received_date", ""),
         "sender_name":       record.get("sender_name", ""),
@@ -90,7 +89,7 @@ def save_to_supabase(record: dict):
         "deadline":          record.get("deadline", ""),
         # --- Classification ---
         "category":          record.get("category", ""),
-        "classification":    record.get("category", ""),   # same value, different column
+        "classification":    record.get("category", ""),
         # --- AI output (extractor uses email_summary / next_action) ---
         "summary":           record.get("email_summary", ""),
         "suggested_action":  record.get("next_action", ""),

@@ -66,6 +66,35 @@ app.add_middleware(
 
 
 # -------------------------------------------------------------------------
+# Field-name translation: Supabase column names → frontend field names
+#
+# The Supabase table uses short legacy names (client, positions, summary…).
+# The React dashboard reads the Phase-8 internal names (client_name,
+# designation, email_summary…). This function translates once at the API
+# boundary so neither the DB schema nor the frontend components need to change.
+# -------------------------------------------------------------------------
+_SUPABASE_TO_FRONTEND = {
+    "email_id":        "req_id",          # email_id column stores the REQ-ID value
+    "client":          "client_name",
+    "positions":       "designation",
+    "summary":         "email_summary",
+    "suggested_action": "next_action",
+    "confidence_score": "llm_confidence",
+}
+
+def _to_frontend(row: dict) -> dict:
+    """Rename Supabase column names to the field names the React dashboard expects."""
+    out = {}
+    for k, v in row.items():
+        frontend_key = _SUPABASE_TO_FRONTEND.get(k, k)
+        out[frontend_key] = v
+    # Keep email_id available under its original name too (used by /records/{id} lookup)
+    if "req_id" in out:
+        out["email_id"] = out["req_id"]
+    return out
+
+
+# -------------------------------------------------------------------------
 # GET /
 # -------------------------------------------------------------------------
 @app.get("/")
@@ -87,7 +116,8 @@ def get_records():
             .order("inserted_at", desc=True)
             .execute()
         )
-        return {"count": len(resp.data), "records": resp.data}
+        records = [_to_frontend(r) for r in resp.data]
+        return {"count": len(records), "records": records}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -107,7 +137,7 @@ def get_record(email_id: str):
         )
         if not resp.data:
             raise HTTPException(status_code=404, detail=f"Record not found: {email_id}")
-        return resp.data[0]
+        return _to_frontend(resp.data[0])
     except HTTPException:
         raise
     except Exception as e:
