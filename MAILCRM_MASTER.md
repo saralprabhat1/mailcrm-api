@@ -919,3 +919,103 @@ Outlook → Groq → Supabase → Render API → Vercel → Browser
 4. Then run pipeline from VS Code to populate more records
 
 ### CURRENT PHASE: 14d — React dashboard (next session)
+
+---
+
+## UPDATE: 2026-06-06 (Session 9) — Phases 14e + 14f complete, pipeline run, field mapping fixed
+
+### Phase 14e — UptimeRobot COMPLETE
+- Monitor live at uptimerobot.com: pings https://mailcrm-api.onrender.com every 5 minutes
+- Prevents Render free tier from spinning down (15-min idle timeout)
+- Alert contact: saral.prabhat@gmail.com (notified if API goes down)
+- Health check endpoint: GET / → `{"status": "ok", "product": "MailCRM"}`
+
+### Phase 14f — Password gate COMPLETE
+- New file: `frontend/src/components/LoginScreen.jsx`
+- `App.jsx`: added `authed` state — if false, render LoginScreen; if true, render dashboard
+- Password: `MailCRM@2026` (hardcoded, change when onboarding real users)
+- Auth state in React memory only — no localStorage, no cookies; refresh = back to login
+- UI: full-screen dark terminal aesthetic, IBM Plex Mono, accent #00d4aa
+- Subtle grid texture background; input auto-focuses on mount; Enter key submits
+- Wrong password: "Incorrect password." error + brief shake animation + field clears
+- Unlock button disabled when field is empty
+- Deployed to Vercel automatically via GitHub push
+
+### Pipeline run — full inbox
+- Ran `run_pipeline(max_emails=50)` on full inbox: 38 emails fetched, 31 passed domain filter
+- 7 filtered by ML/Tier3: 2 sensitive, 2 confidential, 2 irrelevant, 1 financial
+- 30 new CRM records created; all 30 pushed to Supabase
+- Supabase now has 30 rows; Excel crm_data.xlsx has 35 rows total
+- Note: Groq Tier3 rate-limited on second run (same-day quota exhausted after processing 31 emails twice)
+
+### Field mapping fix — api/main.py
+- **Root cause**: React dashboard reads Phase-8 internal field names (`req_id`, `client_name`,
+  `designation`, `email_summary`, `next_action`, `llm_confidence`) but Supabase stores legacy
+  column names (`email_id`, `client`, `positions`, `summary`, `suggested_action`, `confidence_score`).
+  FastAPI was passing raw Supabase rows with no renaming → all six fields showed NULL in dashboard.
+- **Fix**: added `_to_frontend()` transform in `api/main.py` — runs at the API boundary before
+  any response is returned. Applied to `/records` and `/records/{id}` endpoints.
+- Supabase schema unchanged; React components unchanged; storage.py unchanged.
+- A bad intermediate fix (writing to non-existent Supabase columns) was correctly reverted
+  after PGRST204 errors confirmed the table uses the old column names.
+
+### extractor.py — Internal company exclusion list
+- Added `INTERNAL_COMPANY_NAMES` set in `extractor.py` (module-level constant)
+- Added `_filter_client_name()` helper: case-insensitive match + prefix match
+- Applied in `build_multi_role_rows()` at the `client_name` assignment
+- Initial entries: "aldhahi get consultants company ltd", "aldhahi get consultants", "aldhahi"
+- To add new entries: append to `INTERNAL_COMPANY_NAMES` set — no other changes needed
+- Existing Supabase record REQ-20260606-58CA99-01 patched: `client` → NULL via direct Supabase update
+- No other records matched the exclusion list (checked all 30 rows)
+
+### Attachment issue — documented, deferred to Phase 15
+- Many emails show NULL for `client_name`, `designation` (positions), `rates`, `duration`, `deadline`
+- Root cause: requirements are in PDF/Word attachments — the email body only says "please find attached"
+- AI correctly returns null (information is not in the body text it receives)
+- Fix: Phase 15 — extract text from PDF/Word attachments before passing to AI
+- NOT a field mapping bug — the mapping is correct; the data simply isn't in the email body
+
+### NULL field summary (30 Supabase rows)
+| Column | Nulls | % | Cause |
+|---|---|---|---|
+| `duration` | 29 | 97% | In attachments |
+| `rates` | 29 | 97% | In attachments |
+| `mobilization_date` | 27 | 90% | In attachments / not stated |
+| `deadline` | 25 | 83% | In attachments / not stated |
+| `headcount` | 22 | 73% | General enquiry emails |
+| `positions` / designation | 21 | 70% | In attachments |
+| `client` | 18 | 60% | In attachments / internal intermediary |
+| `project` | 16 | 53% | Not stated |
+| `contact_email` | 8 | 27% | Often missing |
+| `location` | 5 | 17% | Usually extractable |
+
+### Google Drive MCP — noted
+- MCP auto-connected at session start (claude.ai Google Drive integration)
+- Not intentionally configured for this project
+- Action: when onboarding real customers, replace with client-appropriate MCP (e.g. SharePoint, OneDrive)
+- No data was written to Google Drive in this session
+
+### DNS fix — re-applied
+- Cloudflare DNS (1.1.1.1 / 1.0.0.1) re-applied via netsh in admin CMD
+- Interface: "Wi-Fi 2"
+- Required due to ISP blocking vercel.com / netlify.com (Meerut)
+- Must re-apply after each network reset or laptop restart
+
+### Git — commits pushed this session
+| Commit | Description |
+|---|---|
+| `6f4cd58` | Fix field-name mismatch (Supabase → React via _to_frontend) |
+| `6f21ade` | Phase 14f: password gate on React dashboard |
+| `991ca04` | extractor: internal company exclusion list |
+| `21ef0af` | MAILCRM_MASTER.md update + MAILCRM_COMMERCIAL_STRATEGY.md |
+
+### CURRENT PHASE: 15 — PDF attachment text extraction
+
+### Next session start point
+1. Read MAILCRM_MASTER.md
+2. Phase 15: add PDF/Word attachment text extraction to the pipeline
+   - Graph API already fetches `hasAttachments` flag — extend to download attachment content
+   - Extract text from PDF (PyMuPDF or pdfplumber) and Word (python-docx)
+   - Append extracted text to email body before passing to AI extractor
+   - Target: populate NULL client/role/rates fields that are currently in attachments
+3. Re-run pipeline (max_emails=50) after Phase 15 to repopulate Supabase with richer data
