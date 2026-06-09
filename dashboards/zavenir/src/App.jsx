@@ -103,8 +103,8 @@ export default function App() {
       {/* ── Main content (fills remaining height) ── */}
       <div className="flex flex-1 min-h-0">
 
-        {/* Left sidebar: StatsBar + StatusBar */}
-        <aside className="flex-shrink-0 w-64 flex flex-col border-r border-border overflow-y-auto">
+        {/* Left sidebar: StatsBar + StatusBar — hidden on mobile, visible on desktop */}
+        <aside className="hidden md:flex flex-shrink-0 w-64 flex-col border-r border-border overflow-y-auto">
           <div className="pt-4">
             <div className="px-4 mb-1 font-mono text-[10px] text-gray-600 uppercase tracking-widest">
               Overview
@@ -177,10 +177,10 @@ export default function App() {
         {/* Main area: records table + detail panel */}
         <div className="flex flex-1 min-w-0 min-h-0">
 
-          {/* Records table */}
+          {/* Records table — hidden on mobile when detail panel is open */}
           <div className={[
-            'flex flex-col min-h-0 transition-all duration-200',
-            selected ? 'flex-1' : 'flex-1',
+            'flex-col min-h-0 transition-all duration-200',
+            selected ? 'hidden md:flex md:flex-1' : 'flex flex-1',
           ].join(' ')}>
             <div className="px-4 pt-4 pb-2 flex-shrink-0 flex items-center justify-between">
               <h1 className="font-sans font-semibold text-white text-base">
@@ -199,9 +199,9 @@ export default function App() {
             />
           </div>
 
-          {/* Detail panel — slides in when a row is selected */}
+          {/* Detail panel — full width on mobile, fixed sidebar on desktop */}
           {selected && (
-            <div className="flex-shrink-0 w-80 xl:w-96 min-h-0 overflow-hidden">
+            <div className="flex flex-col flex-1 md:flex-none md:flex-shrink-0 md:w-80 xl:w-96 min-h-0 overflow-hidden">
               <DetailPanel
                 record={selected}
                 onClose={() => setSelected(null)}

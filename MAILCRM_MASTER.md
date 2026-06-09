@@ -1288,12 +1288,46 @@ Remaining empty fields at 71%: genuine document gaps (rates = blank vendor templ
 | `dashboards/zavenir/` | New — React dashboard (Vite + TailwindCSS, mobile-responsive, password gated) |
 | `api/main.py` | GET /zavenir/records + GET /zavenir/stats endpoints (commit 738a5a0) |
 
-### CURRENT PHASE: 17 — Zavenir Thread Intelligence
+---
+
+### Phase 17 — COMPLETE: Zavenir Thread Intelligence
+
+#### What was built:
+- `fetch_conversation(access_token, conv_id)` in `utils/zavenir_extractor.py` — fetches all emails in a thread via Graph API `$filter=conversationId eq '...'`, sorted oldest-first
+- `stitch_thread(email_list, max_chars=15000)` — chronological stitching with `[DATE | SENDER]` prefix per email, 15K char cap with truncation marker
+- `extract_zavenir_thread(thread_text)` — Groq call with `{"enquiries": [...]}` wrapper; returns one record per distinct product model
+- `THREAD_SYSTEM_PROMPT` — key rule: "different model numbers or grades of the same brand are DIFFERENT products — create one record per model number"; prevents Nox-Rust 307 + R-823 merging into one record
+- `_clean_body()` updated — `html.unescape()` added after HTML tag-strip; decodes `&lt;`, `&amp;`, `&nbsp;`, `&#8764;` before Groq sees the text
+- `configs/zavenir_daubert.py` renamed → `configs/clients/zavenir.py`; `configs/clients/__init__.py` and `configs/clients/client_template.py` added
+- `utils/retry.py` updated — respects `Retry-After` / `x-ratelimit-reset-*` headers on 429; 60s fallback if header absent
+- 15s inter-email sleep in `run_pipeline()` to stay within Groq TPM limits
+- `_make_req_id(email_id, idx)` — multi-product threads get suffixes `-01`, `-02`, `-03` per product
+- `DRY_RUN` flag in `run_zavenir_parser.py` for safe testing without saving
+
+#### Phase 17 Production Results (2026-06-09):
+
+| Email | Records | Products |
+|---|---|---|
+| FW: Alloy Wheel Cleaner (Unominda) | 1 | X-Clean 2070 BF |
+| FW: RFQ - VCI Roll (ELEMATIC) | 1 | Vapor Corrosion Inhibitors (VCI) |
+| FW: Offer-Auto International Binola | **3** | Nox-Rust 307 + Nox-Rust R-823 + X-Cool 1000 |
+| FW: Defoamer quotation (Kapl Rohtak) | 1 | ADDITIVE D |
+| **Total** | **6** | — |
+
+Auto International: 1 record (pre-Phase 17, generic Nox-Rust) → **3 records** (one per model number). Thread intelligence working as designed.
+
+#### Hardening Backlog:
+- **MSAL token refresh mid-run**: 80+ min of cumulative Retry-After waits expired the access token on email 4; `fetch_conversation` returned 401, fell back to single-email body gracefully. Fix: re-call `get_access_token()` at the start of each email iteration before `fetch_conversation()`.
+- **Zavenir dedup**: multiple dry runs + the production run created duplicate records in `zavenir_requirements`; clean before next production run.
+
+#### Commit: `8dd103d`
+
+---
+
+### CURRENT PHASE: 17 COMPLETE
 
 ### Next Session Start Point
 1. Read MAILCRM_MASTER.md
-2. Phase 17 — Zavenir Thread Intelligence: spec and build
-   - Goal: stitch emails by conversationId, one opportunity per product per thread
-   - Track negotiation stage per product across the thread
-   - Auto International Binola thread (May 20 - June 5, 2026) is the gold test case: 3 products, prices quoted across multiple emails
-3. ML classifier retrain — lower priority, after Phase 17 MVP
+2. Clean duplicate records in `zavenir_requirements` Supabase table (multiple test runs created duplicates — deduplicate by `req_id`)
+3. MSAL token refresh mid-run hardening (`run_zavenir_parser.py` — re-acquire token before each `fetch_conversation()` call)
+4. ML classifier retrain — `training_data_v2.csv` has 36 "relevant" samples but all are outbound GET emails; need inbound RFQ examples added before retraining

@@ -62,6 +62,16 @@ export default function DetailPanel({ record, onClose }) {
 
       {/* ── Header ── */}
       <div className="flex-shrink-0 px-5 pt-4 pb-3 border-b border-border">
+
+        {/* Back button — mobile only */}
+        <button
+          onClick={onClose}
+          className="md:hidden flex items-center gap-1 font-mono text-xs text-gray-500
+                     hover:text-accent transition-colors mb-3"
+        >
+          &#8592; Back
+        </button>
+
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="font-mono text-[10px] text-accent tracking-widest mb-1">
