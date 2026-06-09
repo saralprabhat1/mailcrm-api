@@ -1,7 +1,7 @@
 # MailCRM — Commercial Strategy Master File
 > Separate from MAILCRM_MASTER.md (technical build log)
 > This file = business strategy, market positioning, commercialization discussion only
-> Last updated: 2026-06-09 | Session 5
+> Last updated: 2026-06-09 | Session 6
 
 ---
 
@@ -13,6 +13,7 @@ The pilot was built for an upstream oil & gas manpower consultancy (GET Global).
 
 **Target industry: Oil & Gas — OFS and Operators**
 **Target customer: Mid-tier OFS companies operating in MENA**
+**Entry point: BD / Pre-Sales teams tracking RFQs, ITTs, client enquiries**
 **Current phase: Pre-discovery — outreach not yet started, zero conversations done**
 
 ---
@@ -29,9 +30,18 @@ The pilot was built for an upstream oil & gas manpower consultancy (GET Global).
 - Can make a buying decision in weeks, not years
 - Tier-1 giants (SLB, Halliburton, BH) already have systems — long procurement cycles, wrong fit for now
 
+**Primary entry point — BD / Pre-Sales teams:**
+- Every bid starts as an email — pipeline visibility is zero unless someone manually updates a tracker
+- The pain is visible to leadership (pipeline = revenue)
+- The buyer (Commercial Director / VP BD) has direct budget motivation
+- Closest to what was built and proven at GET Global
+- Saral understands this workflow from the inside
+
 **Secondary targets (longer term):**
-- Operators: ADNOC, Aramco, KOC, TotalEnergies, Shell — vendor/procurement correspondence flows
+- Operators: ADNOC, KOC, TotalEnergies, Shell — vendor/procurement correspondence flows
 - Tier-1 OFS regional offices where global CRM exists but adoption is broken
+- Procurement/Supply Chain teams at mid-tier OFS (vendor quotes, subcontractor correspondence)
+- Contracts/Commercial teams (post-award, variation orders, claims)
 
 ---
 
@@ -44,7 +54,7 @@ These must be answered through discovery conversations — cannot be assumed:
 3. Do they already have a CRM? If yes, is it actually used and working?
 4. Who makes the buying decision at a mid-tier OFS company for a tool like this?
 5. What would a low-friction pilot entry point look like for them?
-6. What business flows beyond manpower tracking exist inside OFS/operators that MailCRM could serve?
+6. Which specific companies (named) should be on the first target list? — **Next session action: Saral to name mid-tier OFS companies encountered in 10 years at Halliburton/MI Swaco/GET where commercial chaos was visible**
 
 ---
 
@@ -55,9 +65,9 @@ These must be answered through discovery conversations — cannot be assumed:
 | 1 | Draft LinkedIn outreach message (Claude to help) | Start 10 discovery conversations | This week |
 | 2 | Mine existing network for warm intros | 5 messages to ex-Halliburton/MI Swaco/GET contacts asking for introductions | This week |
 | 3 | Follow BD managers / commercial directors at mid-tier OFS on LinkedIn | Free market research, learn their language | Ongoing |
-| 4 | Build one-page problem statement | Leave-behind for every conversation, outreach attachment | Before first call |
+| 4 | Build one-page problem statement | Leave-behind for every conversation — write AFTER 3-5 discovery calls using prospect's own language | After first 3 calls |
 | 5 | Start LinkedIn content — 1 post/week on OFS commercial ops / AI workflow | Build credibility before product pitch | Ongoing |
-| 6 | Build list of 20 target companies explicitly | Systematic outreach hit list | Week 2 |
+| 6 | Build list of 20 target companies explicitly | Systematic outreach hit list — start with companies Saral encountered at Halliburton/MI Swaco/GET | Session 7 |
 | 7 | Define pilot/demo entry point | What does "show me" look like for a prospect? | Before first call |
 | 8 | Set up Peerlist profile | India builder community visibility, no product needed | This week |
 | 9 | Set up Indie Hackers profile — post "building in public" entry | Solo founder credibility, early signal | This week |
@@ -87,23 +97,37 @@ These must be answered through discovery conversations — cannot be assumed:
 | LinkedIn outreach before LinkedIn post | Need conversations first, not inbound before product is ready to demo |
 | MAILCRM_COMMERCIAL_STRATEGY.md kept separate from MAILCRM_MASTER.md | Technical log vs business strategy — two files, two concerns |
 | No software patent | Too expensive, too slow, wrong stage — move fast instead; code is auto-copyrighted |
-| Path 1 vs Path 2 (direct client vs CRM vendor licensing) | Unresolved — foundational decision to make next session |
+| **Path 1 confirmed — sell direct to end clients (B2B)** | Path 2 (license to CRM vendors) felt easier but is actually harder at zero-traction stage — no leverage, no reference clients, lose control of product and pricing. Path 2 revisit in 12–18 months with 2–3 live deployments. |
+| Entry point = BD/Pre-Sales teams at mid-tier OFS | Closest to built proof, pain visible to leadership, buyer has revenue motivation |
 
 ---
 
 ## OPEN QUESTIONS (PARKED, NOT FORGOTTEN)
 
-- What specific business flow inside mid-tier OFS is the right entry point? (needs discovery)
-- Pricing model: setup fee + retainer vs per-seat SaaS? (decide after first client conversation — next agenda item)
+- Pricing model: setup fee + retainer vs per-seat SaaS? — **Session 7 agenda item #1**
+- What specific companies should be on the first target list? — Saral to name from personal experience next session — **Session 7 agenda item #2**
+- Deployment story for mid-tier OFS pilot — identify target market and specific companies first; deployment story follows
 - When to register a company? (trigger = second party willing to pay)
 - When to raise funding? (trigger = 2-3 paying clients with MRR proof)
 - Path 3 (license/OEM to CRM companies like Salesforce/HubSpot) — revisit in 2-3 years with traction
-- ADIPEC November — worth attending independently for networking? (if attending via GET Global anyway, use it)
-- What does the deployment story look like for a mid-tier OFS pilot? (30-day trial? sandbox?) — unresolved
-- Does MailCRM handle Arabic/English bilingual emails? If not, is this a gap or a Phase 2 feature?
 - Discovery conversations: still 0. No outreach sent. Single most important unblocked action.
-- Path 1 (sell direct to end clients) vs Path 2 (license to CRM vendors as bolt-on feature) — unresolved, needs a session to work through properly
-- Pricing — not yet worked out; next agenda item for Session 6
+
+---
+
+## PARKING LOT (TOPICS RAISED — NOT YET DISCUSSED)
+
+These came up across sessions but haven't had dedicated discussion time. Capture here so nothing is lost.
+
+| Topic | What was raised | When to discuss |
+|---|---|---|
+| Company name / brand | MailCRM is working name — is this the final product/company name? | Before landing page goes live |
+| Legal structure | Pvt Ltd confirmed as right structure — but what about contracts, IP ownership, client agreements before registration? | Before first paying client |
+| Client contract template | What does a MailCRM service agreement look like? SOW, IP clauses, data handling, SLA | Before first paying client |
+| Hiring / scale | When does Saral need a first hire? What role? | After 2-3 paying clients |
+| GET Global as client | Repositioned as "the lab" — when and how to approach them as a regular paying prospect? | After 1 external client |
+| India vs MENA as base for company | Where should the entity be registered — India (Pvt Ltd) or UAE (FZE)? Tax and client perception implications | Before company registration |
+| GITEX October 2026 | Working demo + one-pager + 5 discovery conversations needed as prerequisites | 3 months away — track progress |
+| Landing page | Simple problem statement + "coming soon" + email capture — entry ticket for Beta List and credibility for Indie Hackers/Peerlist | Before demo is ready |
 
 ---
 
@@ -123,9 +147,8 @@ These must be answered through discovery conversations — cannot be assumed:
 - Zero-entry-effort model — reads email, no AM data input required
 - Microsoft stack deployment (Outlook/Graph API) — what every O&G company already runs
 
-**MENA-specific market dynamics (Session 2 research):**
+**MENA-specific market dynamics:**
 - Microsoft stack (Outlook, Teams, SharePoint) is near-universal in MENA OFS — strong deployment fit
-- Arabic/English bilingual emails common — parser's handling of this is a potential differentiator or gap to address
 - Saudi Aramco heavily Ariba-driven (portal, not email) — reduces MailCRM fit for Saudi operator procurement
 - ADNOC, KOC, TotalEnergies remain email-heavy — better fit for operator flows in UAE/Kuwait/Iraq
 
@@ -135,9 +158,9 @@ These must be answered through discovery conversations — cannot be assumed:
 
 | Path | Description | Status |
 |---|---|---|
-| Path 1 — Bootstrap SaaS | Pilot internally → charge companies directly | Right destination eventually, not now |
-| Path 2 — Consultancy | Deploy for clients as paid setup service | **Best immediate move** |
-| Path 3 — License/OEM | Sell tech to CRM company as module | 2-3 years away, needs traction first |
+| Path 1 — Bootstrap SaaS / Consultancy | Deploy for clients directly, charge for setup + ongoing | **CONFIRMED — current path** |
+| Path 2 — License/OEM to CRM vendors | Sell tech to CRM company as bolt-on module | Revisit in 12–18 months with 2–3 live deployments |
+| Path 3 — License/OEM to Salesforce/HubSpot | Sell to Tier-1 CRM as module | 2-3 years away, needs traction first |
 | Path 4 — Raise funding | Angel/pre-seed for faster build | After 2-3 paying clients |
 | Path 5 — Acquisition | Build to sell to Salesforce/HubSpot | Long game, keep in mind |
 | Path 0 — Open source | Free/community-led | Do not do this |
@@ -150,9 +173,50 @@ These must be answered through discovery conversations — cannot be assumed:
 
 ---
 
-## COST MODEL
+## UNIT ECONOMICS & COST MODEL
 
-### Stage 0 — Today (pre-client)
+### Cost Per Email (LLM is the dominant cost)
+
+Each email processed requires: Graph API call (free) + LLM extraction call + DB write (negligible).
+
+**Token estimate per email:**
+| Component | Tokens |
+|---|---|
+| Email body (input) | ~300–800 |
+| System prompt + schema (input) | ~500–800 |
+| Extracted JSON output | ~200–400 |
+| **Total per email** | **~1,000–2,000 (use 1,500 as working number)** |
+
+**Cost per email by LLM provider:**
+| Provider | Cost per email | Notes |
+|---|---|---|
+| Groq (current pilot) | ~$0.0001 | Free tier / very cheap paid |
+| GPT-4o Mini | ~$0.0003 | Best cost/quality ratio for production |
+| GPT-4o / Claude Sonnet | ~$0.005 | Higher quality, still very cheap at these volumes |
+| Azure OpenAI (in-tenant) | **Client's Azure bill — not yours** | Same model pricing, billed to client's subscription |
+
+### Monthly Cost at Different Volumes
+
+| Emails/day | Emails/month | GPT-4o cost | GPT-4o Mini cost | Azure (client pays) |
+|---|---|---|---|---|
+| 20 | ~600 | ~$3/mo | ~$0.18/mo | Client's bill |
+| 50 | ~1,500 | ~$7.50/mo | ~$0.45/mo | Client's bill |
+| 100 | ~3,000 | ~$15/mo | ~$0.90/mo | Client's bill |
+| 500 | ~15,000 | ~$75/mo | ~$4.50/mo | Client's bill |
+
+### Key Insight: Cost vs Value
+
+At 20 emails/day (typical mid-tier OFS BD team), LLM cost = **$3–8/month.**
+
+A BD manager spending 3 hours/week manually updating trackers = **~$300–500/month** in salary cost alone.
+
+**The margin is enormous. Price on value, not cost.**
+
+**Client Azure compute talking point:** *"At your email volume, the Azure compute cost is under $10 a month — it's not a budget line, it's background noise on your existing Azure invoice."*
+
+### Infrastructure Cost by Stage
+
+**Stage 0 — Today (pre-client)**
 | Item | Cost |
 |---|---|
 | Groq (LLM) | Free tier |
@@ -163,7 +227,7 @@ These must be answered through discovery conversations — cannot be assumed:
 | Microsoft Graph API | Free (M365 included) |
 | **Monthly total** | **~₹0** |
 
-### Stage 1 — First client
+**Stage 1 — First client**
 | Item | Cost |
 |---|---|
 | Groq paid tier or OpenAI API | $20–$100/mo |
@@ -173,60 +237,57 @@ These must be answered through discovery conversations — cannot be assumed:
 | **Monthly recurring** | **~$57–$155/mo** |
 | Company registration (Pvt Ltd) — one-time | ₹10,000–15,000 |
 
-> First client's setup fee should cover one-time registration cost. Monthly recurring is easily covered by first paying client.
+> First client's setup fee should cover one-time registration cost. Monthly recurring easily covered by first paying client.
 
-### Stage 2 — 3–5 clients
+**Stage 2 — 3–5 clients**
 | Item | Cost |
 |---|---|
 | LLM API (scaled usage) | $100–$400/mo |
 | Supabase Pro (per project or shared) | $25–$75/mo |
 | Render / cloud infra | $50–$100/mo |
-| UptimeRobot / monitoring | Free tier |
 | Azure OpenAI (in-tenant deployments) | **Client pays — not you** |
 | SharePoint / M365 hosting | **Client's tenant — not you** |
 | **Monthly recurring** | **~$175–$575/mo** |
 
-> **Key principle:** Push clients toward in-tenant deployment as early as possible. Client bears Azure/M365 costs, your infrastructure bill stays low, and switching cost goes up significantly once it's inside their Azure tenant.
+> **Key principle:** Push clients toward in-tenant deployment as early as possible. Client bears Azure/M365 costs, infrastructure bill stays low, switching cost goes up significantly once inside their Azure tenant.
 
 ---
 
 ## OBJECTIONS & RISKS
 
 ### "We'll build it internally"
-Most common enterprise deflection. IT will always say yes when asked if they can build it. The real question is whether they'll prioritise it — they won't. Use the argument explicitly: *"Your IT team can absolutely build this. The question is when, and at what opportunity cost."*
+Most common enterprise deflection. IT will always say yes when asked if they can build it. The real question is whether they'll prioritise it — they won't. *"Your IT team can absolutely build this. The question is when, and at what opportunity cost."*
 
 ### "We already have a CRM"
 Mid-tier OFS companies often have Salesforce or Dynamics that nobody uses properly. Data is stale, adoption is broken. MailCRM doesn't compete with the CRM — it feeds it. Position as a layer that makes their existing CRM investment actually work.
 
 ### "Who else are you deployed with?" (Reference client problem)
-First client will ask this and you'll have nobody to name. Fix: offer a heavily discounted or free pilot explicitly in exchange for a written case study and reference call rights. That reference is worth more than the first fee.
+First client will ask this and you'll have nobody to name. Fix: offer a heavily discounted pilot explicitly in exchange for a written case study and reference call rights. That reference is worth more than the first fee.
 
 ### Single-founder dependency risk
-Procurement or legal teams may ask: what happens if you disappear? Options to address: escrow of code, documented handover plan, or framing GET Global as anchor client proving continuity.
+Procurement or legal teams may ask: what happens if you disappear? Options: escrow of code, documented handover plan, or framing GET Global as anchor client proving continuity.
 
 ### Data privacy objection (especially MENA)
-Saudi, UAE, Kuwait companies increasingly sensitive about commercial data location. One-sentence answer: *"Your emails never leave your own Microsoft environment — we deploy inside your Azure tenant, not ours."* In-tenant model is the answer — be ready to say it clearly to a non-technical BD manager.
+One-sentence answer: *"Your emails never leave your own Microsoft environment — we deploy inside your Azure tenant, not ours."*
 
 ### You are the product right now
-Clients are buying you — your domain knowledge, responsiveness, understanding of their world. Strength (trust, credibility) and risk (not scalable). In BD manager conversations: lean into practitioner angle. In CTO/IT conversations: lean into architecture.
+Clients are buying you — your domain knowledge, responsiveness, understanding of their world. In BD manager conversations: lean into practitioner angle. In CTO/IT conversations: lean into architecture.
 
 ### Pricing hesitation
-The moment you hesitate on price, they'll push. Decide your number before the first call and don't apologise for it.
+Decide your number before the first call and don't apologise for it.
 
 ### IP / competitive copying risk
-Tech stack is standard — a competent dev team could build a rough version in weeks if shown too much. Mitigations:
 - Show outcomes only in early conversations, not code or architecture
 - Demo on anonymised data only
 - Move fast — get a signed MOU before deep technical disclosure
 - Frame as managed service, not a product they own
-- Don't publish full technical approach in slides or LinkedIn before first paying client
 - Real moat is iteration history, domain logic, and ongoing improvement — not the stack itself
 
 ### "Can you integrate with our existing system?"
-They will ask this. Honest answer: *"Current version works standalone or feeds into Excel/SharePoint. Custom integrations are scoped separately."* Don't promise integrations you haven't built.
+Honest answer: *"Current version works standalone or feeds into Excel/SharePoint. Custom integrations are scoped separately."*
 
 ### Talking publicly at events
-Once presenting at ADIPEC/GITEX etc., competitors will find you. Fine and inevitable — but don't reveal architecture before first paying client. Talk about problem and outcome only.
+Talk about problem and outcome only — not architecture — before first paying client.
 
 ---
 
@@ -257,110 +318,74 @@ Once presenting at ADIPEC/GITEX etc., competitors will find you. Fine and inevit
 
 **Key reframes in this session:**
 
-1. **Manpower companies in upstream O&G = wrong target.** Saral clarified this explicitly. MailCRM should be positioned for other business flows and processes within Oil & Gas — OFS companies and operators are the target, not manpower consultancies.
+1. **Manpower companies in upstream O&G = wrong target.** MailCRM should be positioned for other business flows within Oil & Gas — OFS companies and operators are the target, not manpower consultancies.
 
-2. **Mid-tier OFS is the entry point.** Tier-1 giants (SLB, BH, Halliburton) likely have systems already and have 18-month procurement cycles. Mid-tier (Petrofac, Kentech, Sapura, Enpro etc.) have the pain, no proper system, and can decide fast.
+2. **Mid-tier OFS is the entry point.** Tier-1 giants have systems and 18-month procurement cycles. Mid-tier (Petrofac, Kentech, Sapura, Enpro etc.) have the pain, no proper system, and can decide fast.
 
-3. **Knowledge gap is the real problem right now.** Saral confirmed:
-   - No firsthand knowledge of mid-tier OFS BD workflows (was a field guy at Halliburton/MI Swaco)
-   - Zero contacts at mid-tier OFS currently
-   - Doesn't know the specific broken moment in their workflow yet
-   - Therefore: discovery conversations are the entire next phase, not more building
+3. **Knowledge gap is the real problem right now.** No firsthand knowledge of mid-tier OFS BD workflows, zero contacts there, don't know the specific broken moment. Discovery conversations are the entire next phase.
 
-4. **MailCRM build continues in parallel** via Claude Code sessions (MAILCRM_MASTER.md tracks that separately).
+4. **MailCRM build continues in parallel** via Claude Code sessions.
 
-5. **LinkedIn strategy:** Outreach before posting. 10 cold/warm DMs to BD managers at mid-tier OFS to start discovery conversations. Post comes later when there's a story to tell.
+5. **LinkedIn: outreach before posting.** 10 cold/warm DMs to BD managers first. Post comes later.
 
-**Competitive landscape discussed:**
-- Generic staffing CRMs: no O&G domain knowledge
-- Salesforce: enterprise-only, wrong fit for mid-tier
-- Riger CRM: closest but focused on OFS sales, not email automation
-- AIEmailParser.com: general purpose, no domain logic
-- **Conclusion: the specific gap (email-to-CRM automation for OFS commercial teams, MENA-focused, zero manual entry) is real and unserved**
-
-**Commercial decisions made this session:**
-- No investors yet
-- No company registration yet (wait for second paying party)
-- Don't give it away free
-- Consultancy/service model is the right first move
-- Discovery before everything else
-
-**Next deliverables agreed:**
-- LinkedIn outreach message (Claude to draft, multiple versions)
-- One-page problem statement
-- List of 20 target companies
-- 1 post/week content rhythm on LinkedIn
+**Commercial decisions:** No investors yet. No company registration yet. Don't give it away free. Consultancy/service model first. Discovery before everything else.
 
 ### Session 2 — 2026-06-06
 
-**Started with:** Continued from Session 1. Focus shifted to MENA market dynamics and discovery conversation framework.
-
 **Key content covered:**
 
-1. **MENA OFS market research:** Microsoft stack (Outlook/Teams/SharePoint) is near-universal — strong deployment advantage. Arabic/English bilingual emails are common in RFQs — worth knowing if parser handles this. Saudi Aramco is Ariba-dominant (portal-based, not email) which reduces MailCRM fit for Saudi operator procurement. ADNOC, KOC, TotalEnergies are email-heavy — better fit.
+1. **MENA OFS market research:** Microsoft stack near-universal. Saudi Aramco = Ariba-dominant, reduces fit. ADNOC, KOC, TotalEnergies email-heavy — better fit.
 
-2. **Discovery question framework developed.** Questions should be hypothesis validation, not open-ended fishing. Peer-level tone — practitioner checking assumptions, not startup founder pitching. Key questions:
-   - "My understanding is most BD tracking at your level is still Excel and email — is that accurate?"
-   - "When leadership asks for a pipeline update, how long does it take to produce one?"
-   - "Have you tried CRM before? What happened to it?"
-   - "When a BD manager leaves, how do you recover their client context?"
+2. **Discovery question framework:** Hypothesis validation, peer-level tone. Key questions developed.
 
-3. **One-pager: too soon.** Decided not to write the one-page problem statement yet. Reasoning: write it after 3-5 discovery conversations using the prospect's own language, not ours. Pre-discovery one-pager sounds like a product brochure. Post-discovery one-pager has specifics that resonate.
+3. **One-pager: too soon.** Write after 3-5 discovery conversations using prospect's own language.
 
-4. **Demo/pilot problem raised but unresolved.** When someone says "show me" — what do you show? Can't use live client email. Sandbox? Anonymised GET Global data? Not yet answered.
+4. **Demo/pilot problem raised but unresolved.**
 
-5. **Networking events noted:** ADIPEC, OSEA, GITEX Energy, Gastech — don't need to exhibit, just be in the room. If attending via GET Global already, second reason to be there.
+5. **LinkedIn: listen before you post.** Follow BD managers first, learn their language.
 
-6. **LinkedIn: listen before you post.** Follow BD managers and commercial directors at mid-tier OFS first. Learn their language from what they share and comment on. Post comes after you have a story.
-
-**Status at end of session:** LinkedIn outreach message not drafted yet. No discovery conversations started. All actions still pending.
+**Status:** LinkedIn outreach message not drafted. No discovery conversations started.
 
 ### Session 3 — 2026-06-07
 
-**Started with:** Saral uploaded the strategy file and confirmed it was only Session 1. Requested to continue discussion. Session was very brief — Saral confirmed zero discovery conversations have happened to date, then typed `exit`.
-
-**Key facts established:**
-- Discovery conversations: 0 done. No outreach sent yet.
-- File was not updated after Session 2 — Sessions 2 and 3 captured together in this update.
-
-**Status:** All Session 1 and 2 actions remain pending. The single most important unblocked next step is drafting and sending the LinkedIn outreach message to start discovery conversations.
+Very brief. Saral confirmed zero discovery conversations to date, then typed exit. File not updated after Session 2 — Sessions 2 and 3 captured together.
 
 ### Session 4 — 2026-06-07
 
-**Started with:** File was behind by one full session (Session 4 content was missing) — not captured because Groq update script wasn't run at end of that session.
-
-**Key content covered:**
-- Clarified the bat/py script purpose: automates end-of-session .md file updates using Groq free tier (Llama 3.3) — Groq used instead of Claude API because it's free and the task is mechanical document editing
-- Full workflow confirmed: Claude chat → type exit → copy session notes → run update_strategy.bat → paste notes → type END → Groq updates .md with backup saved
-- Clarified that pasting the .md file at the start of each new commercial strategy session is how Claude gets context — works as primary method, and Claude can also search past conversations as fallback
-- Exit notes going forward must include session date and time (IST) as the last line
-- No new strategic decisions made this session — housekeeping and workflow alignment only
-- Discovery conversations: still 0. No outreach sent. This remains the single most important unblocked action.
-- Session date/time: 2026-06-07, approximately 19:15 IST
+Housekeeping and workflow alignment only. Confirmed bat/py script purpose and exit workflow. No new strategic decisions. Discovery conversations: still 0.
 
 ### Session 5 — 2026-06-09
 
-**Started with:** Saral uploaded strategy file. Quick housekeeping note: chat should be renamed to "CRM Commercial Strategy" in sidebar at start of each session (Claude cannot do this automatically).
+**Key content covered:**
 
-**Voice session (June 8) notes incorporated:**
-- Path 1 vs Path 2 question raised: license to CRM vendors (B2B2B) vs sell directly to end clients (B2B). Foundational decision, not yet made — added to open questions.
-- For CRM vendor route, a credible proof point suffices over a full paid pilot — demo using GET Global anonymised data or realistic sample emails (Baker Hughes extraction flagged as good showcase).
-- GITEX October not confirmed as hard dependency for discovery conversations — correction noted.
+1. **Launch platforms:** 10 platforms analysed. Peerlist and Indie Hackers immediate (no product needed). Others when demo-ready. Landing page is entry ticket for multiple platforms.
 
-**Key content covered this session:**
+2. **IP / patents:** No software patent — too expensive, too slow, wrong stage. Move fast instead.
 
-1. **Launch platforms:** Analysed 10 platforms from a YouTube short (Builders Central). All 10 documented in Launch Platforms section with relevance ratings and timing. Immediate actions: Peerlist and Indie Hackers (no product needed). Show Me Best AI, Beta List, Product Hunt when demo-ready. Landing page identified as entry ticket for multiple platforms.
+3. **Cost model built out:** Three stages documented. In-tenant deployment = significant cost shield.
 
-2. **IP / patents:** Software patents not recommended at this stage — expensive ($10-20k+), slow (2-4 years), hard to enforce without deep pockets. Real protection comes from: trade secrets (keep architecture private), auto-copyright on code, first-mover advantage, domain expertise, and customer stickiness via in-tenant deployment. Decision: no patent, move fast instead.
+4. **Objections & risks framework:** Comprehensive list documented.
 
-3. **Cost model built out:** Three stages (pre-client / first client / 3-5 clients) with line-item costs. Key insight: in-tenant deployment model is a significant cost shield — Azure/M365 costs sit with the client, not Saral. Full model documented in Cost Model section.
+**Status:** Discovery conversations still 0. Pricing and Path 1 vs Path 2 deferred to Session 6.
 
-4. **Objections & risks framework:** Comprehensive list of likely objections and how to handle them — "we'll build it internally", "we already have CRM", reference client problem, single-founder dependency, data privacy (MENA), pricing hesitation, IP copying risk, integration questions, and event/public disclosure risk. All documented in Objections & Risks section.
+### Session 6 — 2026-06-09
 
-**Status at end of session:**
-- Discovery conversations: still 0. No outreach sent. Remains single most important unblocked action.
-- Pricing model: not yet worked out — first item for Session 6.
-- Path 1 vs Path 2: not yet resolved — second item for Session 6.
+**Key content covered:**
+
+1. **Housekeeping:** Removed Arabic/English bilingual support from open questions (cancelled). Removed ADIPEC attendance (cancelled previous session). Deployment story reframed: identify companies first, deployment story follows.
+
+2. **Unit economics added.** ~1,500 tokens per email. At 20 emails/day = $3–8/month LLM cost. In-tenant = client's Azure bill. Value framing: manual BD tracker time costs $300–500/month in salary vs $3–8 compute. Price on value, not cost. Full table added to Cost Model section.
+
+3. **Path 1 vs Path 2 — DECIDED: Path 1 confirmed.** Path 2 felt easier but wrong at this stage — no leverage, no reference clients, lose product control. Revisit Path 2 in 12–18 months with live deployments.
+
+4. **Customer base — entry point identified.** BD/Pre-Sales teams confirmed as primary entry point. Session ended before naming specific target companies.
+
+5. **Parking Lot section added** to capture stray topics across sessions: company name, legal structure, client contracts, hiring, GET Global as client, India vs MENA entity, GITEX prerequisites, landing page.
+
+**Session 7 agenda:**
+- Item 1: Pricing model
+- Item 2: Saral names mid-tier OFS companies from Halliburton/MI Swaco/GET years → first target list
+- Discovery conversations: still 0. Single most important unblocked action.
 - Session date/time: 2026-06-09 IST
 
 ---

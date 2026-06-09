@@ -190,7 +190,7 @@ def get_stats():
 
 # -------------------------------------------------------------------------
 # Zavenir field transform — no column renames needed; Supabase columns
-# already match the frontend field names defined in configs/zavenir_daubert.py.
+# already match the frontend field names defined in configs/clients/zavenir.py.
 # This function whitelists only the known fields so extra DB columns don't leak.
 # -------------------------------------------------------------------------
 _ZAVENIR_FIELDS = [

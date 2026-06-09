@@ -22,6 +22,7 @@
 
 import os
 import sys
+import time
 import hashlib
 import datetime
 import re
@@ -54,8 +55,8 @@ from utils.auth import get_access_token
 from email_reader import fetch_emails, get_email_attachments
 import parser as email_parser
 from utils.attachment_extractor import extract_text_from_attachment
-from utils.zavenir_extractor import extract_zavenir_record
-from configs.zavenir_daubert import FIELDS, EXCEL_OUTPUT, SUPABASE_TABLE, SENDER_FILTER
+from utils.zavenir_extractor import extract_zavenir_thread, fetch_conversation, stitch_thread
+from configs.clients.zavenir import FIELDS, EXCEL_OUTPUT, SUPABASE_TABLE, SENDER_FILTER
 
 # ---------------------------------------------------------------------------
 # SUPABASE CLIENT — zavenir pipeline uses the same credentials as GET Global
@@ -89,6 +90,12 @@ _ZAVENIR_EMAIL_RE = re.compile(r"tarora@zavenir\.com", re.IGNORECASE)
 
 GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
 
+# Set True to print raw Graph API fields and exit without extraction or saves.
+DEBUG_DISCOVERY = False
+# Set True to run full extraction but skip Excel + Supabase saves.
+# Useful for testing prompt or thread changes without touching production data.
+DRY_RUN = False
+
 
 def _search_zavenir_emails(token: str, max_results: int = 25) -> list:
     """
@@ -103,7 +110,8 @@ def _search_zavenir_emails(token: str, max_results: int = 25) -> list:
     """
     fields = ",".join([
         "id", "subject", "receivedDateTime", "from",
-        "body", "bodyPreview", "isRead", "hasAttachments", "importance"
+        "body", "bodyPreview", "isRead", "hasAttachments", "importance",
+        "conversationId", "conversationIndex",   # Phase 17 discovery
     ])
     url = (
         f"{GRAPH_BASE_URL}/me/messages"
@@ -138,9 +146,11 @@ def _search_zavenir_emails(token: str, max_results: int = 25) -> list:
             "body_preview":    item.get("bodyPreview", ""),
             "body_content":    item.get("body", {}).get("content", ""),
             "body_type":       item.get("body", {}).get("contentType", "text"),
-            "is_read":         item.get("isRead", False),
-            "has_attachments": item.get("hasAttachments", False),
-            "importance":      item.get("importance", "normal"),
+            "is_read":           item.get("isRead", False),
+            "has_attachments":   item.get("hasAttachments", False),
+            "importance":        item.get("importance", "normal"),
+            "conversationId":    item.get("conversationId", "NOT PRESENT"),    # Phase 17 discovery
+            "conversationIndex": item.get("conversationIndex", "NOT PRESENT"), # Phase 17 discovery
         })
     return emails
 
@@ -184,6 +194,62 @@ def run_pipeline(max_emails: int = 10) -> dict:
     print(f"  Found {len(emails)} email(s) matching 'tarora@zavenir.com'.")
 
     # ------------------------------------------------------------------
+    # Phase 17 DISCOVERY — print raw Graph API fields then exit early.
+    # No AI extraction, no Excel save, no Supabase upsert.
+    # Remove / set DEBUG_DISCOVERY = False when building thread logic.
+    # ------------------------------------------------------------------
+    if DEBUG_DISCOVERY:
+
+        def _safe(text):
+            """Encode to cp1252 so Windows console never throws UnicodeEncodeError."""
+            return str(text).encode("cp1252", errors="replace").decode("cp1252")
+
+        print("\n" + "=" * 65)
+        print("  [DISCOVERY] STEP 1 — Raw Graph API fields (first 10 emails)")
+        print("=" * 65)
+        for idx, em in enumerate(emails[:10], start=1):
+            print(f"\n  [{idx}]")
+            print(f"  email_id         : {_safe(em.get('email_id', '')[:80])}")
+            print(f"  subject          : {_safe(em.get('subject', ''))}")
+            print(f"  received_date    : {em.get('received_date', '')}")
+            print(f"  conversationId   : {_safe(em.get('conversationId', 'NOT PRESENT'))}")
+            conv_idx = em.get("conversationIndex", "NOT PRESENT")
+            print(f"  conversationIndex: {_safe(conv_idx[:60] if conv_idx != 'NOT PRESENT' else conv_idx)}")
+
+        # STEP 2 — filter for Auto International / Binola / X-Cool / Nox Rust thread
+        _THREAD_KW = re.compile(
+            r"auto\s*international|binola|x[\s\-]?cool|nox\s*rust",
+            re.IGNORECASE,
+        )
+
+        def _matches_thread(em: dict) -> bool:
+            return any(
+                _THREAD_KW.search(em.get(field, "") or "")
+                for field in ("subject", "sender_name", "body_preview")
+            )
+
+        print("\n" + "=" * 65)
+        print("  [DISCOVERY] STEP 2 — Thread keyword filter")
+        print("  Keywords: Auto International | Binola | X-Cool | Nox Rust")
+        print("=" * 65)
+        matches = [em for em in emails if _matches_thread(em)]
+        if matches:
+            for em in matches:
+                print(f"\n  subject          : {_safe(em.get('subject', ''))}")
+                print(f"  sender_name      : {_safe(em.get('sender_name', ''))}")
+                print(f"  received_date    : {em.get('received_date', '')}")
+                print(f"  conversationId   : {_safe(em.get('conversationId', 'NOT PRESENT'))}")
+                conv_idx = em.get("conversationIndex", "NOT PRESENT")
+                print(f"  conversationIndex: {_safe(conv_idx[:60] if conv_idx != 'NOT PRESENT' else conv_idx)}")
+        else:
+            print("\n  No keyword matches found in this batch.")
+
+        print("\n" + "=" * 65)
+        print("  [DISCOVERY] Complete. No AI extraction. No saves.")
+        print("=" * 65 + "\n")
+        return {"records": [], "emails_fetched": len(emails), "zavenir_found": 0}
+
+    # ------------------------------------------------------------------
     # Step 2: Filter for Zavenir emails only
     # ------------------------------------------------------------------
     print(f"\n[Step 2] Filtering for sender: {SENDER_FILTER}...")
@@ -207,17 +273,38 @@ def run_pipeline(max_emails: int = 10) -> dict:
     for i, email in enumerate(zavenir_emails, start=1):
         subject = email.get("subject", "(No subject)")
         sender  = email.get("sender_email", "")
+        conv_id = email.get("conversationId", "")
 
         print(f"[{i}/{len(zavenir_emails)}] {subject[:55]}")
         print(f"           From: {sender}")
 
-        # Wrap each email in try/except — one bad email never stops the run
         try:
+            # ------------------------------------------------------------------
+            # Phase 17 — Thread Intelligence
+            # Fetch the full conversation using conversationId, then stitch all
+            # emails into one text block before passing to the AI.
+            # ------------------------------------------------------------------
+            if conv_id and conv_id != "NOT PRESENT":
+                print("           Fetching conversation thread...")
+                thread_emails = fetch_conversation(token, conv_id)
+                print(f"           Thread: {len(thread_emails)} email(s) in conversation.")
+            else:
+                thread_emails = []
+                print("           WARNING: No conversationId — using single email body.")
 
-            # --- Attachment text extraction ---
-            # Many product enquiries carry specs, quantities, or delivery dates
-            # inside an attached PDF, Excel, or Word file. Appending that text
-            # to the body before AI extraction prevents NULL fields.
+            if thread_emails:
+                base_text = stitch_thread(thread_emails)
+            else:
+                # Fallback: wrap single email in the same [DATE | SENDER] format
+                fallback = [{
+                    "subject":       email.get("subject", ""),
+                    "received_date": email.get("received_date", ""),
+                    "sender":        email.get("sender_email", ""),
+                    "body_content":  email.get("body_content", ""),
+                }]
+                base_text = stitch_thread(fallback)
+
+            # --- Attachment text extraction (from the forwarded/anchor email) ---
             if email.get("has_attachments"):
                 print("           Attachments: detected — downloading...")
                 att_list  = get_email_attachments(token, email["email_id"])
@@ -230,63 +317,69 @@ def run_pipeline(max_emails: int = 10) -> dict:
 
                 if att_texts:
                     combined_att = "\n\n".join(att_texts)
-                    email["body_content"] = (
-                        email.get("body_content", "")
-                        + "\n\n--- ATTACHMENT TEXT ---\n"
-                        + combined_att
-                    )
-                    total_chars = sum(len(t) for t in att_texts)
+                    base_text   += "\n\n--- ATTACHMENT TEXT ---\n" + combined_att
+                    total_chars  = sum(len(t) for t in att_texts)
                     print(
                         f"           Attachments: {len(att_texts)}/{len(att_list)} "
-                        f"extracted, {total_chars} chars appended to body"
+                        f"extracted, {total_chars} chars appended."
                     )
                 elif att_list:
                     print(
                         f"           Attachments: {len(att_list)} downloaded but "
-                        "no text extracted (scanned image or unsupported format)"
+                        "no text extracted (scanned image or unsupported format)."
                     )
 
-            # --- Clean email body for AI ---
-            # prepare_email_for_ai() strips HTML, removes excess whitespace,
-            # and formats the email as: SUBJECT / FROM / DATE / body
-            email_text = email_parser.prepare_email_for_ai(email)
+            # --- AI extraction — multi-product thread mode ---
+            print("           Extracting with Groq AI (thread mode)...")
+            product_records = extract_zavenir_thread(base_text)
 
-            # --- AI extraction ---
-            print("           Extracting commercial fields with Groq AI...")
-            extracted = extract_zavenir_record(email_text)
-
-            if not extracted or not any(v for v in extracted.values()):
-                print("           WARNING: AI returned empty extraction — skipping")
+            if not product_records:
+                print("           WARNING: AI returned no records — skipping.")
                 failed += 1
                 continue
 
-            # --- Assemble the full CRM record ---
-            # System-filled fields are set here; AI fields come from extracted dict.
-            req_id = _make_req_id(email.get("email_id", ""))
+            # --- Assemble one CRM record per extracted product ---
+            # Use conversationId as the hash base so all products from the same
+            # thread share a common REQ-…-XXXXXX- prefix and differ only by index.
+            thread_key = conv_id or email.get("email_id", "")
+            new_count  = 0
 
-            record = {
-                "req_id":        req_id,
-                "status":        "New",
-                "received_date": email.get("received_date", "")[:10],
-                "sender_email":  email.get("sender_email", ""),
-                "email_subject": email.get("subject", ""),
-            }
-            record.update(extracted)    # merge in all AI-extracted fields
+            for prod_idx, extracted in enumerate(product_records, start=1):
+                if not any(v for v in extracted.values()):
+                    continue  # skip genuinely empty records
 
-            print(
-                f"           -> customer={record.get('customer') or '(unknown)'}"
-                f" | product={record.get('product_category') or '(unknown)'}"
-                f" | qty={record.get('quantity') or '?'} "
-                f"{record.get('quantity_unit') or ''}"
-            )
+                req_id = _make_req_id(thread_key, prod_idx)
+                record = {
+                    "req_id":        req_id,
+                    "status":        "New",
+                    "received_date": email.get("received_date", "")[:10],
+                    "sender_email":  email.get("sender_email", ""),
+                    "email_subject": email.get("subject", ""),
+                }
+                record.update(extracted)
 
-            records.append(record)
+                brand    = record.get("product_brand") or record.get("product_category") or "(unknown)"
+                customer = record.get("customer") or "(unknown)"
+                qty      = record.get("quantity") or "?"
+                unit     = record.get("quantity_unit") or ""
+                print(f"           -> [{prod_idx}] {brand} | {customer} | qty={qty} {unit}")
+
+                records.append(record)
+                new_count += 1
+
+            if new_count == 0:
+                print("           WARNING: all extracted records were empty — skipping.")
+                failed += 1
 
         except Exception as e:
             failed += 1
             print(f"           ERROR: {type(e).__name__}: {e} — logged, continuing")
 
         print()
+        # Groq free tier: ~6000 tokens/min. Each thread email can be 1500-2500 tokens.
+        # 15s between emails keeps total usage well under the per-minute token limit.
+        if i < len(zavenir_emails):
+            time.sleep(15)
 
     if failed:
         print(f"  {failed} email(s) failed extraction — see output above.")
@@ -326,21 +419,23 @@ def _is_zavenir_email(email: dict) -> bool:
 # REQ_ID GENERATION
 # ===========================================================================
 
-def _make_req_id(email_id: str) -> str:
+def _make_req_id(email_id: str, idx: int = 1) -> str:
     """
     Generate a unique record ID in the same format as the GET Global pipeline.
 
-    Format: REQ-YYYYMMDD-XXXXXX-01
+    Format: REQ-YYYYMMDD-XXXXXX-NN
       YYYYMMDD — today's date
-      XXXXXX   — first 6 hex chars of MD5 hash of the email_id (uppercase)
-      01       — always 01 for Zavenir (one record per email, no multi-role split)
+      XXXXXX   — first 6 hex chars of MD5 hash of email_id / conversationId (uppercase)
+      NN       — product index within the thread (01, 02, 03 …)
 
-    The MD5 hash is deterministic: re-running on the same email always produces
-    the same req_id, which makes Excel and Supabase deduplication reliable.
+    Using conversationId as the hash base ensures all products from the same
+    thread share a common prefix; the index makes each product unique.
+    MD5 is deterministic — re-running the same thread always produces the
+    same req_ids, so Supabase upsert is idempotent.
     """
     id_hash  = hashlib.md5(email_id.encode()).hexdigest()[:6].upper() if email_id else "000000"
     date_str = datetime.date.today().strftime("%Y%m%d")
-    return f"REQ-{date_str}-{id_hash}-01"
+    return f"REQ-{date_str}-{id_hash}-{idx:02d}"
 
 
 # ===========================================================================
@@ -501,17 +596,27 @@ if __name__ == "__main__":
     emails_fetched = pipeline_result["emails_fetched"]
     zavenir_found  = pipeline_result["zavenir_found"]
 
-    print(f"[Step 3] Saving {len(records)} record(s) to Excel + Supabase...")
-    save_result = save_records(records)
+    if DRY_RUN:
+        print()
+        print("=" * 65)
+        print("  DRY RUN SUMMARY (no saves)")
+        print("=" * 65)
+        print(f"  Emails fetched          : {emails_fetched}")
+        print(f"  Zavenir emails found    : {zavenir_found}")
+        print(f"  Records extracted       : {len(records)}")
+        print(f"  (Set DRY_RUN = False to save to Excel + Supabase)")
+    else:
+        print(f"[Step 3] Saving {len(records)} record(s) to Excel + Supabase...")
+        save_result = save_records(records)
 
-    print()
-    print("=" * 65)
-    print("  ZAVENIR RUN SUMMARY")
-    print("=" * 65)
-    print(f"  Emails fetched          : {emails_fetched}")
-    print(f"  Zavenir emails found    : {zavenir_found}")
-    print(f"  Records extracted       : {len(records)}")
-    print(f"  Saved to Excel          : {save_result['excel_saved']}")
-    print(f"  Saved to Supabase       : {save_result['supabase_saved']}")
-    if EXCEL_PATH.exists():
-        print(f"\n  Open: {EXCEL_OUTPUT}")
+        print()
+        print("=" * 65)
+        print("  ZAVENIR RUN SUMMARY")
+        print("=" * 65)
+        print(f"  Emails fetched          : {emails_fetched}")
+        print(f"  Zavenir emails found    : {zavenir_found}")
+        print(f"  Records extracted       : {len(records)}")
+        print(f"  Saved to Excel          : {save_result['excel_saved']}")
+        print(f"  Saved to Supabase       : {save_result['supabase_saved']}")
+        if EXCEL_PATH.exists():
+            print(f"\n  Open: {EXCEL_OUTPUT}")

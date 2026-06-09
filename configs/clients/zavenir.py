@@ -1,4 +1,4 @@
-# configs/zavenir_daubert.py
+# configs/clients/zavenir.py
 # Configuration for the Zavenir Daubert pipeline.
 # Zavenir Daubert is a specialty chemicals and lubricants company.
 #
@@ -12,7 +12,6 @@
 PIPELINE_NAME = "zavenir_daubert"
 
 # Only emails from this sender are processed by the Zavenir pipeline.
-# All other senders are ignored.
 SENDER_FILTER = "tarora@zavenir.com"
 
 # ---------------------------------------------------------------------------
@@ -87,5 +86,5 @@ FIELDS = [
 # OUTPUT PATHS
 # ---------------------------------------------------------------------------
 
-EXCEL_OUTPUT    = "data/zavenir_crm.xlsx"
-SUPABASE_TABLE  = "zavenir_requirements"
+EXCEL_OUTPUT   = "data/zavenir_crm.xlsx"
+SUPABASE_TABLE = "zavenir_requirements"

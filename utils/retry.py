@@ -75,6 +75,27 @@ def retry_api_call(api_func, max_attempts=MAX_ATTEMPTS, base_delay=BASE_DELAY, l
             # 5xx server errors and 429 rate-limit are worth retrying
             last_error = e
 
+            # For 429, use Retry-After header if present (Groq returns this).
+            # Override the standard exponential delay with the actual reset time.
+            if status == 429 and e.response is not None and attempt < max_attempts:
+                raw = (
+                    e.response.headers.get("Retry-After")
+                    or e.response.headers.get("x-ratelimit-reset-requests")
+                    or e.response.headers.get("x-ratelimit-reset-tokens")
+                )
+                if raw:
+                    try:
+                        override = float(raw) + 2  # small buffer
+                        print(f"  [{label}] Rate-limit: Retry-After={raw}s — waiting {override:.0f}s...")
+                        time.sleep(override)
+                        continue  # skip the standard sleep below
+                    except (ValueError, TypeError):
+                        pass
+                # No header — fall back to a 60s wait for rate-limit errors
+                print(f"  [{label}] Rate-limit 429 (no Retry-After header) — waiting 60s...")
+                time.sleep(60)
+                continue  # skip the standard sleep below
+
         except (requests.exceptions.ConnectionError,
                 requests.exceptions.Timeout,
                 requests.exceptions.RequestException) as e:
