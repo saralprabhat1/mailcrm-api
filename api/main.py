@@ -4,11 +4,13 @@
 # Run with: uvicorn api.main:app --reload  (from project root)
 #
 # Endpoints:
-#   GET  /                  health check
-#   GET  /records           all CRM records from Supabase
-#   GET  /records/{id}      single record by email_id (REQ- format)
-#   GET  /stats             totals, status breakdown, top PSLs, last-7-days count
-#   POST /run-pipeline      triggers run_pipeline(max_emails=5), returns summary
+#   GET  /                       health check
+#   GET  /records                all CRM records from Supabase
+#   GET  /records/{id}           single record by email_id (REQ- format)
+#   GET  /stats                  totals, status breakdown, top PSLs, last-7-days count
+#   POST /run-pipeline           triggers run_pipeline(max_emails=5), returns summary
+#   GET  /zavenir/records        Zavenir Daubert CRM records (filterable)
+#   GET  /zavenir/stats          Zavenir pipeline stats + status breakdown
 
 import sys
 import os
@@ -181,6 +183,109 @@ def get_stats():
             "by_status": dict(status_counts),
             "top_5_psl_categories": top_psls,
             "records_last_7_days": recent_count,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------------------------------------------------
+# Zavenir field transform — no column renames needed; Supabase columns
+# already match the frontend field names defined in configs/zavenir_daubert.py.
+# This function whitelists only the known fields so extra DB columns don't leak.
+# -------------------------------------------------------------------------
+_ZAVENIR_FIELDS = [
+    "req_id", "customer", "industry_segment", "product_category",
+    "product_brand", "quantity", "quantity_unit", "location",
+    "delivery_date", "status", "received_date", "sender_email",
+    "email_subject", "email_summary", "next_action", "llm_confidence",
+]
+
+def _to_zavenir_frontend(row: dict) -> dict:
+    """Pick the known Zavenir fields from a Supabase row."""
+    return {field: row.get(field) for field in _ZAVENIR_FIELDS}
+
+
+# -------------------------------------------------------------------------
+# GET /zavenir/records
+# -------------------------------------------------------------------------
+from typing import Optional  # noqa: E402
+
+@app.get("/zavenir/records")
+def get_zavenir_records(
+    status:           Optional[str] = None,
+    product_category: Optional[str] = None,
+    industry_segment: Optional[str] = None,
+):
+    """
+    Return Zavenir Daubert CRM records from Supabase, newest first.
+    Optional filters: status, product_category, industry_segment.
+    """
+    try:
+        query = (
+            supabase.table("zavenir_requirements")
+            .select("*")
+            .order("received_date", desc=True)
+        )
+        if status:
+            query = query.eq("status", status)
+        if product_category:
+            query = query.eq("product_category", product_category)
+        if industry_segment:
+            query = query.eq("industry_segment", industry_segment)
+
+        resp    = query.execute()
+        records = [_to_zavenir_frontend(r) for r in resp.data]
+        return {"count": len(records), "records": records}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------------------------------------------------
+# GET /zavenir/stats
+# -------------------------------------------------------------------------
+_ZAVENIR_INACTIVE_STATUSES = {"lost", "done"}
+
+@app.get("/zavenir/stats")
+def get_zavenir_stats():
+    """
+    Aggregated stats for the Zavenir Daubert pipeline:
+      - total_records
+      - last_7_days        count of records received in the last 7 days
+      - active             count of records whose status is not Lost or Done
+      - top_product_category   the most common product_category value
+      - status_breakdown   {status: count} for all statuses present
+    """
+    try:
+        resp = supabase.table("zavenir_requirements").select("*").execute()
+        rows = resp.data
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+
+        last_7_days = sum(
+            1 for r in rows
+            if (r.get("received_date") or "") >= cutoff
+        )
+
+        active = sum(
+            1 for r in rows
+            if (r.get("status") or "").lower() not in _ZAVENIR_INACTIVE_STATUSES
+        )
+
+        category_counts: Counter = Counter(
+            r["product_category"] for r in rows if r.get("product_category")
+        )
+        top_product_category = category_counts.most_common(1)[0][0] if category_counts else None
+
+        status_breakdown = dict(Counter(
+            r.get("status") or "Unknown" for r in rows
+        ))
+
+        return {
+            "total_records":       len(rows),
+            "last_7_days":         last_7_days,
+            "active":              active,
+            "top_product_category": top_product_category,
+            "status_breakdown":    status_breakdown,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
