@@ -85,8 +85,9 @@ def prepare_email_for_ai(email_record):
     else:
         clean_body = body_content.strip()
 
-    # Truncate very long emails — the AI only needs the first ~3000 characters
-    max_chars = 3000
+    # Phase 16 — increased from 3000; attachment-enriched emails need headroom for BOQ/scope tables
+    # 12K total keeps prompts reasonable while covering multi-file ZIP content.
+    max_chars = 12000
     if len(clean_body) > max_chars:
         clean_body = clean_body[:max_chars] + "\n\n[... email truncated ...]"
 

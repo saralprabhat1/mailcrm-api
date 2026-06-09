@@ -33,7 +33,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "05_classifier"))
 sys.path.insert(0, str(PROJECT_ROOT / "06_data_storage"))
 sys.path.insert(0, str(PROJECT_ROOT / "08_advanced"))
 
-from email_reader import fetch_emails
+from email_reader import fetch_emails, get_email_attachments
+from utils.attachment_extractor import extract_text_from_attachment
 from utils.auth import get_access_token
 from utils.pipeline_logger import log_failure, add_to_review_queue, get_review_queue_count
 from config.fields import CONFIDENCE_REVIEW_THRESHOLD
@@ -109,15 +110,18 @@ def run_pipeline(max_emails=5):
     print()
 
     # Step 3: Route each email to the correct processing branch
-    crm_rows          = []    # New records to save at the end
-    total_new         = 0
-    total_updated     = 0
-    failed_count      = 0
-    review_count      = 0
-    ml_skipped        = 0
-    tier3_calls       = 0    # how many times Tier 3 LLM was invoked
-    duplicates_blocked = 0   # rows blocked as definite duplicates
-    possible_dups      = 0   # rows flagged as possible duplicates
+    crm_rows           = []    # New records to save at the end
+    total_new          = 0
+    total_updated      = 0
+    failed_count       = 0
+    review_count       = 0
+    ml_skipped         = 0
+    tier3_calls        = 0    # how many times Tier 3 LLM was invoked
+    duplicates_blocked = 0    # rows blocked as definite duplicates
+    possible_dups      = 0    # rows flagged as possible duplicates
+    att_emails_found   = 0    # emails where attachment text was extracted
+    # Print enriched body sample once (first email with extracted attachment text)
+    _att_sample_printed = False
 
     for i, email in enumerate(emails, start=1):
         subject = email.get("subject", "(No subject)")
@@ -138,6 +142,61 @@ def run_pipeline(max_emails=5):
             ec_summary = get_edge_case_summary(email)
             if ec_summary:
                 print(f"         Edge cases: {ec_summary}")
+
+            # --- Phase 15: Attachment text extraction ---
+            # If the email has attachments, download them and extract text.
+            # Many requirement emails have a near-blank body ("please find attached")
+            # with all the actual data — client, role, rates, duration, deadline —
+            # inside the PDF or Word file. Appending that text to the body lets the
+            # AI extractor see the full requirement instead of returning all NULLs.
+            #
+            # We do this AFTER preprocess_email so we are appending to the already-
+            # cleaned body (HTML stripped, Fw: chain removed). The enriched body is
+            # then seen by both the ML classifier and the AI extractor.
+            if email.get("has_attachments"):
+                print(f"         Attachments: email flagged as having attachments — downloading...")
+                att_list = get_email_attachments(token, email["email_id"])
+
+                att_texts = []
+                for att in att_list:
+                    att_text = extract_text_from_attachment(att["name"], att["bytes"])
+                    if att_text:
+                        # Label each attachment section so the AI knows where text came from
+                        att_texts.append(f"[Attachment: {att['name']}]\n{att_text}")
+
+                if att_texts:
+                    combined_att = "\n\n".join(att_texts)
+                    email["body_content"] = (
+                        email.get("body_content", "")
+                        + "\n\n--- ATTACHMENT TEXT ---\n"
+                        + combined_att
+                    )
+                    att_emails_found += 1
+                    total_chars = sum(len(t) for t in att_texts)
+                    print(
+                        f"         Attachments: {len(att_texts)}/{len(att_list)} extracted, "
+                        f"{total_chars} chars appended to body"
+                    )
+
+                    # Print the enriched body once so the operator can verify
+                    # extraction is working before trusting the AI output.
+                    # We show the last 1000 chars — that is the attachment portion.
+                    if not _att_sample_printed:
+                        _att_sample_printed = True
+                        print()
+                        print("~" * 65)
+                        print("  PHASE 15 SAMPLE — enriched body (attachment portion)")
+                        print("~" * 65)
+                        sample = email["body_content"][-1000:]
+                        print(sample)
+                        print("~" * 65)
+                        print()
+
+                elif att_list:
+                    print(
+                        f"         Attachments: {len(att_list)} downloaded but no text extracted "
+                        "(may be scanned image PDF or unsupported format)"
+                    )
 
             # --- TIER 2: ML classification gate (Phase 10) ---
             # Classify the email BEFORE spending Groq API tokens on it.
@@ -307,6 +366,8 @@ def run_pipeline(max_emails=5):
 
     print(f"  Pipeline complete.")
     print(f"  Emails fetched      : {len(emails)}")
+    if att_emails_found:
+        print(f"  Attachment text     : {att_emails_found} email(s) enriched from attachments")
     if ml_skipped:
         print(f"  ML filtered out     : {ml_skipped} (irrelevant/sensitive/financial/confidential)")
     if tier3_calls:
@@ -545,14 +606,19 @@ def print_crm_preview(crm_rows):
 # ENTRY POINT
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    crm_rows = run_pipeline(max_emails=5)
+    # Phase 15 verified (Session 11, 2026-06-07): DOCX table + XLSX extraction
+    # confirmed against the Baker Hughes "Oman DS Hiring" email — AI now pulls
+    # 8 real roles with day rates instead of returning an empty roles array.
+    # save_records() is live below. Run with max_emails=50 once Groq's rate
+    # limit resets (hit 429s at the end of this session).
+
+    crm_rows = run_pipeline(max_emails=50)
 
     if crm_rows:
         print_crm_preview(crm_rows)
 
         print("\n[Step 3] Saving to Excel + Supabase...")
-        result = save_records(crm_rows)   # writes Excel AND pushes each row to Supabase
-
+        result = save_records(crm_rows)
         print(f"\n  Done.")
         print(f"  Saved:      {result['saved']} new record(s)")
         print(f"  Duplicates: {result['skipped_duplicates']} skipped")

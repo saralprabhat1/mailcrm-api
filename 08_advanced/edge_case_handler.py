@@ -33,6 +33,11 @@ _SELF_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SELF_DIR.parent / "04_email_parser"))
 from parser import strip_html
 
+# Import footer stripper from the classifier — strips confidentiality boilerplate
+# before the body reaches the ML classifier, Tier 3 LLM, or Groq extraction.
+sys.path.insert(0, str(_SELF_DIR.parent / "05_classifier"))
+from email_classifier import strip_legal_footer
+
 
 # ---------------------------------------------------------------------------
 # COMPILED PATTERNS (built once at import — re.compile is expensive in a loop)
@@ -145,6 +150,12 @@ def preprocess_email(email_record):
             "(possibly CVs or requirement documents) that were not auto-extracted. "
             "Parse the email body only; manual review of attachments is required.]"
         )
+
+    # --- Step 5: Strip legal disclaimer footer ---
+    # Confidentiality boilerplate appended by mail servers pollutes the body
+    # and causes false-positive "confidential" labels in the ML classifier.
+    # Strip it here so every downstream consumer (ML, Tier 3, Groq) sees clean text.
+    email["body_content"] = strip_legal_footer(email["body_content"])
 
     email["_edge_cases"] = edge_cases
     return email

@@ -54,7 +54,8 @@ TRAINING_CSV = PROJECT_ROOT / "data" / "training_emails.csv"
 MODEL_PATH = PROJECT_ROOT / "data" / "email_classifier.joblib"
 
 # Confidence below this threshold means the model is unsure — Tier 3 (LLM) should handle it
-CONFIDENCE_THRESHOLD = 0.75
+# Phase 16 temporary — retrain classifier before raising this back
+CONFIDENCE_THRESHOLD = 0.50
 
 # All known OFS/NOC domain keywords — used as one feature signal
 # A sender from one of these domains is more likely to be a genuine business email
@@ -70,6 +71,87 @@ KNOWN_INDUSTRY_DOMAINS = {
 # Labels in a fixed order — needed so the model's probability array
 # lines up correctly with label names when we call predict_proba()
 LABEL_NAMES = ["relevant", "irrelevant", "sensitive", "financial", "confidential"]
+
+
+# ---------------------------------------------------------------------------
+# LEGAL FOOTER STRIPPER
+#
+# Every forwarded client email contains a confidentiality/disclaimer footer
+# appended by the sender's mail server. Example:
+#
+#   "This email is confidential and may be legally privileged..."
+#   "DISCLAIMER: The information in this message is confidential..."
+#
+# These footers contain words like "confidential" and "privileged" which the
+# TF-IDF classifier learns as signal for the "confidential" label — causing
+# genuine RFQs to be blocked. Strip the footer before any classification.
+#
+# Rule: only the SUBJECT LINE can trigger the "confidential" label (see
+# _is_confidential_subject() below). Words in the body are never reliable
+# signals because legal boilerplate appears in almost every forwarded email.
+# ---------------------------------------------------------------------------
+
+# Patterns that mark the start of a legal disclaimer / confidentiality footer.
+# Matching is case-insensitive. Everything from the first matched line to end
+# of body is removed.
+_FOOTER_PATTERNS = [
+    "this email is confidential",
+    "this message is confidential",
+    "this e-mail is confidential",
+    "this e-mail and any attachments",
+    "this email and any attachments",
+    "disclaimer",
+    "confidentiality notice",
+    "confidentiality statement",
+    "the information in this message is confidential",
+    "the information contained in this",
+    "this communication is intended solely",
+    "this transmission is intended only",
+    "if you are not the intended recipient",
+    "please consider the environment",   # common email footer line before disclaimers
+    "classification: confidential",
+    "classification: restricted",
+    "caution: verify sender",            # phishing-warning boilerplate (e.g. QatarEnergy LNG)
+]
+
+
+def strip_legal_footer(body_text: str) -> str:
+    """
+    Remove the legal disclaimer / confidentiality footer from an email body.
+
+    Scans the body line-by-line. When a line matches one of the known footer
+    opening patterns (case-insensitive), everything from that line to the end
+    of the body is discarded. Returns the cleaned text.
+
+    If no footer pattern is found, the original text is returned unchanged.
+    """
+    if not body_text:
+        return body_text
+
+    lines = body_text.splitlines()
+    cutoff = len(lines)   # default: keep everything
+
+    for i, line in enumerate(lines):
+        stripped = line.strip().lower()
+        if any(stripped.startswith(pat) for pat in _FOOTER_PATTERNS):
+            cutoff = i
+            break
+
+    cleaned = "\n".join(lines[:cutoff]).strip()
+    return cleaned if cleaned else body_text   # never return empty string
+
+
+def _is_confidential_subject(subject: str) -> bool:
+    """
+    Return True only if the SUBJECT LINE explicitly signals confidentiality.
+
+    The "confidential" label should never fire on body text alone because
+    every forwarded email contains boilerplate disclaimers. A subject like
+    "Strictly Confidential - Partnership Proposal" or "Private: HR Matter"
+    is a genuine signal; body text is not.
+    """
+    s = subject.lower()
+    return any(word in s for word in ("confidential", "private", "strictly confidential"))
 
 
 # ---------------------------------------------------------------------------
@@ -379,6 +461,11 @@ def classify_email(email_dict: dict, model_bundle: dict = None) -> dict:
     sender     = email_dict.get("sender_email", "")
     has_attach = email_dict.get("has_attachments", False)
 
+    # Strip legal disclaimer footers before the body reaches TF-IDF.
+    # Confidentiality boilerplate in the body is noise, not signal — it appears
+    # in almost every forwarded client email and causes false "confidential" labels.
+    body = strip_legal_footer(body)
+
     # Extract just the domain from the full email address
     sender_domain = sender.split("@")[-1] if "@" in str(sender) else ""
 
@@ -407,6 +494,17 @@ def classify_email(email_dict: dict, model_bundle: dict = None) -> dict:
     # The predicted label is simply the one with the highest probability
     best_label = max(all_scores, key=all_scores.get)
     confidence = all_scores[best_label]
+
+    # Post-prediction safety rule: "confidential" label is only valid when the
+    # SUBJECT LINE contains the signal word. Body text is never a reliable
+    # trigger because every forwarded email has a confidentiality footer.
+    # If the model returned "confidential" but the subject is clean, demote to
+    # the next-highest scoring label instead.
+    if best_label == "confidential" and not _is_confidential_subject(subject):
+        # Remove "confidential" from the scores, pick the next best label
+        remaining = {k: v for k, v in all_scores.items() if k != "confidential"}
+        best_label = max(remaining, key=remaining.get)
+        confidence = remaining[best_label]
 
     return {
         "label":        best_label,

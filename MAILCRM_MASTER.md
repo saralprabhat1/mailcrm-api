@@ -1019,3 +1019,281 @@ Outlook → Groq → Supabase → Render API → Vercel → Browser
    - Append extracted text to email body before passing to AI extractor
    - Target: populate NULL client/role/rates fields that are currently in attachments
 3. Re-run pipeline (max_emails=50) after Phase 15 to repopulate Supabase with richer data
+
+---
+
+## UPDATE: 2026-06-07 (Session 10) — Phase 15: Attachment extraction wired in
+
+### Phase 15 — Attachment text extraction (verification stage)
+
+- New file: `utils/attachment_extractor.py`
+  - `extract_text_from_attachment(name, bytes)` → str
+  - PDF: pdfplumber first, PyMuPDF fallback
+  - DOCX: python-docx paragraph extraction
+  - Other types: empty string + log warning
+  - Never crashes pipeline — all exceptions return empty string
+
+- Modified: `03_outlook/email_reader.py`
+  - New function: `get_email_attachments(access_token, message_id)` → list of dicts
+  - Graph API endpoint: GET /me/messages/{id}/attachments
+  - Skips attachments >5MB and inline images (content_type: image/*)
+
+- Modified: `run_parser.py`
+  - When hasAttachments True: downloads attachments, extracts text, appends with `\n\n--- ATTACHMENT TEXT ---\n` separator
+  - Prints one-time enriched body sample for verification
+  - Tracks `att_emails_found` counter in run summary
+  - `__main__` set to max_emails=10 with save_records() commented out for verification run
+
+### Current status
+- Extraction is wired in and running — NOT yet verified
+- save_records() is commented out — no Supabase writes yet
+
+### Next session start point
+1. Read MAILCRM_MASTER.md
+2. Run run_parser.py (max_emails=10, save_records commented out)
+3. Paste enriched body sample into Claude.ai — verify extraction quality
+4. If good: uncomment save_records(), re-run with max_emails=50 to push enriched records to Supabase
+5. Check dashboard at https://mailcrm-api.vercel.app — confirm NULL fields are now populating
+
+### CURRENT PHASE: 15 — pending verification + Supabase push
+
+---
+
+## UPDATE: 2026-06-07 (Session 11) — Phase 15 verification complete
+
+### Phase 15 — verification run (max_emails=10)
+
+- Ran `run_parser.py` and inspected the enriched body sample for the Baker
+  Hughes "Fw: Oman DS Hiring" email (the one with `BH_Oman_Proposal_DS_V2.docx`
+  + `Baker_Oman_DS_V2.xlsx` attachments).
+- Found the gap: `_extract_docx()` only read paragraph text — the actual
+  role/rate table lived in a Word table (cut off right at "Responsibility
+  Matrix:"), and `.xlsx` attachments were skipped entirely (not handled).
+
+### Fix — `utils/attachment_extractor.py`
+
+- `_extract_docx()`: now also walks `doc.tables`, joining each row's cell
+  text with `" | "` and appending after the paragraph text.
+- New `_extract_xlsx()`: reads `.xlsx` attachments with `openpyxl`
+  (read-only mode), iterating every worksheet/row, labelling each sheet
+  with `[Sheet: <name>]`, joining non-empty cell values with `" | "`.
+- `extract_text_from_attachment()` dispatch updated to route `.xlsx` to the
+  new function.
+
+### Re-run confirms the fix
+
+- Enriched body for the Baker Hughes email grew from 1235 chars (DOCX
+  paragraphs only, AI returned 0 roles) to 8968 chars (2649 DOCX + 6386 XLSX),
+  now showing the full rate-card and training-matrix tables.
+- AI extraction went from "no roles array" → **8 real roles with day rates**
+  (Directional Driller, DD Engineer L1–L3, Drilling Engineering Coordinator,
+  MWD Engineer L1–L3, $235–$528/day) plus 2 PSL-augmented rows (HSE, Training).
+- Pulled the full record dicts for all 10 Baker Hughes/Oman rows — confirmed
+  `client_name`, `client_country`, `rates`, `rates_currency`, `psl_categories`,
+  `project_name`, `contact_person` all populated correctly from attachment text.
+
+### `run_parser.py` — `save_records()` uncommented
+
+- The Phase 15 verification gate is now passed — `save_records()` is live in
+  `__main__` (Excel + Supabase write enabled). Currently still set to
+  `max_emails=10`; bump to 50 for the full-inbox push next session.
+
+### Known issue — Groq rate limit hit at session end
+
+- Running the pipeline 3x back-to-back (verification → fix → re-verify →
+  full-dict inspection) exhausted the Groq quota: Tier 3 classifier calls
+  started returning `429 Too Many Requests`, falling back to
+  "relevant (50%, Tier 3 unavailable)" and flagging emails for review instead
+  of extracting them. The actual Supabase push with `save_records()` has NOT
+  run yet — pending a clean run once the quota resets.
+
+### Next session start point
+1. Read MAILCRM_MASTER.md
+2. Confirm Groq rate limit has reset (no 429s on a small test run)
+3. Run `run_parser.py` with `max_emails=50` — `save_records()` is already
+   live, this will push enriched records (with attachment-derived rates,
+   client names, role tables) to Excel + Supabase
+4. Check dashboard at https://mailcrm-api.vercel.app — confirm previously-NULL
+   fields (client_name, rates, headcount, etc.) are now populating from
+   attachment-enriched extractions
+
+### CURRENT PHASE: 15 COMPLETE — Supabase push pending (Groq quota reset)
+
+---
+
+## UPDATE: 2026-06-09 (Session 12) — Phase 15 Closed + Zavenir Daubert Pipeline Live
+
+### Phase 15 — CLOSED
+- Full 50-email push completed. 120 records now in Supabase `crm_requirements`.
+- ZIP extraction working: MEDCO RFQ ZIP — 5 files, 3 extracted (6,007 chars), 2 scanned image PDFs correctly fell through.
+- Nested ZIPs (ZIPs inside ZIPs) currently skipped — flagged for future fix.
+- Excel stays at 35 rows (deduplication by email_id working correctly).
+- Phase 15 fully closed.
+
+### GET CRM — Data Quality Issue (Flagged, Deferred to Phase 16)
+- Dashboard showing very few fields populating per record, low confidence scores.
+- Root cause unknown — suspected: prompt quality, 3000-char truncation, attachment text positioning.
+- Phase 16 to investigate: debug mode (single email end-to-end print), prompt rewrite, truncation increase.
+- Target: confidence score >0.75 on 80%+ of relevant emails.
+
+### GET Dashboard — Duplicate Records (Flagged, Deferred)
+- Same emails processed in two runs appear with both 20260606 and 20260609 prefixes.
+- June 6 batch: sparse data (pre-attachment extraction). June 9 batch: enriched.
+- Fix needed: clear old records from Supabase or deduplicate by email_id across date prefixes.
+
+### Zavenir Daubert Pipeline — NEW (Full Build This Session)
+
+#### New Files Created:
+- `configs/zavenir_daubert.py` — 13 product categories, 8 industry segments, 16 fields, sender filter, Excel output path, Supabase table name
+- `utils/zavenir_extractor.py` — Groq extractor adapted for Zavenir; one record per email (no multi-role splitting); validates against config lists at runtime
+- `run_zavenir_parser.py` — standalone runner; filters by tarora@zavenir.com; attachment extraction wired in; saves to Excel + Supabase
+- `scripts/create_zavenir_table.sql` — SQL for zavenir_requirements table
+- `dashboards/zavenir/` — full React dashboard (Vite + TailwindCSS); password gated (MailCRM@2026)
+
+#### Supabase:
+- New table: `zavenir_requirements` (18 columns, GENERATED ALWAYS AS IDENTITY PK)
+- 3 real records pushed from first run
+
+#### API (api/main.py):
+- New endpoints added (existing endpoints untouched):
+  - GET /zavenir/records — optional filters: status, product_category, industry_segment
+  - GET /zavenir/stats — total_records, last_7_days, active, top_product_category, status_breakdown
+- Commit: 738a5a0
+
+#### Dashboard:
+- Local: http://localhost:5173
+- Production: https://zavenir-dashboard.vercel.app
+- Password: MailCRM@2026
+- Columns: Req ID, Customer, Segment, Product Category, Brand, Qty, Location, Delivery, Status, Received
+- KPIs: Total Records, Last 7 Days, Active, Top Category
+
+#### Product Categories (13):
+Specialty Greases, Rust Preventive Coatings, Metalworking Fluids, Corrosion Inhibitor Additives (SACI), Food Grade Lubricants, Oil and Gas Lubricants, MIL-SPEC Defense Lubricants, Adhesives and Sealants, Sound Deadening NVH, Process Oils, Vapor Corrosion Inhibitors (VCI), Defoamers and Cleaners, Other
+
+#### Industry Segments (8):
+Steel, Automotive, Oil and Gas, Defense, Marine, Aerospace, General Engineering, Other
+
+#### First Run Results:
+- 3 emails from tarora@zavenir.com found and processed
+- ELEMATIC INDIA PVT LTD — VCI Roll → Other (VCI category added post-run, will fix on next run)
+- Auto International Binola — X-Cool → Metalworking Fluids ✅
+- Kapl Rohtak — ADDITIVE D Defoamer → Other (Defoamers category added post-run, will fix on next run)
+
+### Zavenir — Thread Intelligence Gap Identified
+- Auto International Binola email is a multi-email thread (May 20 – June 5, 2026)
+- Three products discussed across thread: Nox Rust 307 (₹282.36/L), Nox Rust R-823 (₹260.00/L), X-Cool 1000 (₹290.00/L)
+- Pipeline captured only the most recent email snapshot — missed full thread context
+- Phase 17 planned: Thread Intelligence — stitch emails by conversation ID, extract one opportunity per product, track negotiation stage per product
+
+### CURRENT PHASE: 16 — GET CRM Intelligence Layer Improvement
+
+### Next Session Start Point:
+1. Read MAILCRM_MASTER.md
+2. Phase 16: improve GET CRM intelligence layer
+3. Zavenir: re-run run_zavenir_parser.py
+4. GET dashboard: clean up duplicate records
+5. Phase 17 (Zavenir): Thread Intelligence — spec and build
+
+---
+
+## UPDATE: 2026-06-09 (Session 13) — Phase 16 CLOSED + Zavenir Re-run + Pre-Phase 17 Cleanup
+
+### Phase 16 — CLOSED (GET CRM Intelligence Layer)
+
+Five fixes applied in sequence, tracked via `debug_extractor.py` (read-only single-email diagnostic tool):
+
+#### Fix 1 — Zavenir domain isolation
+- `config/email_filters.py`: removed `zavenir.com` from `EXCLUDED_DOMAINS`.
+- Root cause: `email_reader.py` applies `filter_emails()` before returning, so adding zavenir.com to EXCLUDED_DOMAINS blocked both pipelines. The GET pipeline already ignores Zavenir emails because `zavenir.com` is not in `ALLOWED_DOMAINS` — the EXCLUDED entry was redundant and self-defeating.
+
+#### Fix 2 — Confidential false-positive (legal footer stripper)
+- `05_classifier/email_classifier.py`: added `_FOOTER_PATTERNS` list (18 patterns), `strip_legal_footer()` function, `_is_confidential_subject()` helper.
+- Post-prediction override: "confidential" label only sticks if email subject itself contains the word.
+- `08_advanced/edge_case_handler.py`: `strip_legal_footer()` called in Step 5 of `preprocess_email()` so every downstream consumer (ML, Tier 3, Groq) sees clean text.
+- `CONFIDENCE_THRESHOLD` lowered 0.75 -> 0.50 temporarily (retrain classifier before raising back).
+
+#### Fix 3 — Attachment byte key mismatch
+- `get_email_attachments()` returns dicts with key `"bytes"`, not `"content_bytes"`.
+- Fixed in `debug_extractor.py`. After fix: `1. RFQ BF29858.zip` -> 49,537 chars extracted from 5 internal files.
+
+#### Fix 4 — ZIP file priority sort
+- `utils/attachment_extractor.py`: added `_zip_file_priority()` sort key.
+  - Priority 0 (first): files with "boq", "rfq", "scope of work", "rate schedule" in name.
+  - Priority 1 (middle): generic files.
+  - Priority 2 (last): boilerplate — "gcoc", "omanization", "terms and condition", "appendix".
+- Per-file cap: `_ZIP_PER_FILE_MAX_CHARS = 8000` (raised from 3000 in Phase 16).
+- Effect: for MEDCO RFQ ZIP (8 files), BOQ and Scope of Work reach Groq first instead of the 40K-char GCOC legal document.
+
+#### Fix 5 — Truncation limit raised
+- `04_email_parser/parser.py`: `max_chars` raised 3000 -> 12000.
+- `debug_extractor.py`: `MAX_CHARS` synced to 12000.
+
+### Fill Rate Progression (MEDCO RFQ BF29858 — Production Surveillance Service)
+
+| Run | Config | Sent to Groq | Confidence | Fill rate | Key new fields |
+|---|---|---|---|---|---|
+| Baseline | 3K total | 3,000 chars | 0.7 | 19% (56/302) | — |
+| Fix 4+5 v1 | 15K total, 3K/file | 11,922 chars | 0.8 | 68% (26/38) | project_name (specific), location (Nimr), duration, work_schedule, nationality |
+| Fix 5 final | 12K total, 8K/file | 12,000 chars | **0.9** | **71% (27/38)** | + experience_years: "8-10+ years" |
+
+Remaining empty fields at 71%: genuine document gaps (rates = blank vendor template, certifications = not listed, mobilization_date = "Bidder to provide").
+
+### ML Classifier — Deferred
+
+- Root cause confirmed: all 36 "relevant" training samples in `training_data_v2.csv` are internal GET forwarding emails (sprabhat@getglobalgroup.com). Zero inbound client RFQ examples.
+- Classifier scores real forwarded client RFQs at 26-36% irrelevant — has never seen that pattern.
+- Deferred to Phase 17 backlog. Threshold stays 0.50. Training data needs inbound RFQ examples added.
+
+### Zavenir Re-run — 4 Records, Categories Fixed
+
+- Re-run found 0 emails via inbox fetch (emails archived out of inbox).
+- Fix: `run_zavenir_parser.py` now uses `_search_zavenir_emails()` — Graph API `$search="tarora@zavenir.com"` across ALL folders (not inbox-only). Import `requests` added.
+- 4 emails found and processed:
+
+| Customer | Product | Qty |
+|---|---|---|
+| Unominda | Defoamers and Cleaners (was Other) | 20 Ltr |
+| ELEMATIC INDIA PVT LTD | Vapor Corrosion Inhibitors (VCI) (was Other) | 10 NOS |
+| Auto International Binola | Rust Preventive Coatings | ? |
+| Kapl Rohtak | Defoamers and Cleaners (was Other) | 20 ltr |
+
+- All 4 upserted to Supabase `zavenir_requirements`. Confidence: 80% all.
+
+### GET Supabase Cleanup — DONE
+
+- `crm_requirements` had 150 rows: 30 from June 6 run (sparse, pre-attachment extraction) + 120 from June 9 run (attachment-enriched).
+- Deleted all 30 `REQ-20260606-*` records.
+- **120 rows remain** (all June 9 enriched records).
+
+### Strategic Pivot
+
+- **GET CRM: FROZEN.** 120 clean records in Supabase, dashboard live at https://mailcrm-api.vercel.app. No new GET feature work planned.
+- **All new development: Zavenir Daubert pipeline.** Phase 17 = Zavenir Thread Intelligence.
+- **ICP confirmed:** MailCRM targets B2B product-selling companies (specialty chemicals, lubricants, industrial goods) that receive enquiries by email and need to track them as opportunities. Not oil & gas manpower.
+
+### Files Changed This Session
+
+| File | Change |
+|---|---|
+| `config/email_filters.py` | Removed `zavenir.com` from EXCLUDED_DOMAINS |
+| `05_classifier/email_classifier.py` | Footer stripper + confidential override + threshold 0.75->0.50 |
+| `08_advanced/edge_case_handler.py` | Step 5: strip_legal_footer() in preprocess_email() |
+| `utils/attachment_extractor.py` | ZIP priority sort + per-file 8K cap + XLSX support |
+| `04_email_parser/parser.py` | Truncation 3000->12000 |
+| `run_zavenir_parser.py` | _search_zavenir_emails() all-folder Graph $search |
+| `debug_extractor.py` | New — read-only single-email diagnostic (MAX_CHARS=12000) |
+| `configs/zavenir_daubert.py` | New — 13 product categories, 8 segments, sender filter |
+| `utils/zavenir_extractor.py` | New — Groq extractor for Zavenir (single record per email) |
+| `scripts/create_zavenir_table.sql` | New — Supabase DDL for zavenir_requirements |
+| `dashboards/zavenir/` | New — React dashboard (Vite + TailwindCSS, mobile-responsive, password gated) |
+| `api/main.py` | GET /zavenir/records + GET /zavenir/stats endpoints (commit 738a5a0) |
+
+### CURRENT PHASE: 17 — Zavenir Thread Intelligence
+
+### Next Session Start Point
+1. Read MAILCRM_MASTER.md
+2. Phase 17 — Zavenir Thread Intelligence: spec and build
+   - Goal: stitch emails by conversationId, one opportunity per product per thread
+   - Track negotiation stage per product across the thread
+   - Auto International Binola thread (May 20 - June 5, 2026) is the gold test case: 3 products, prices quoted across multiple emails
+3. ML classifier retrain — lower priority, after Phase 17 MVP

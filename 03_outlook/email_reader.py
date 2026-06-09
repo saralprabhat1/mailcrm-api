@@ -12,6 +12,7 @@
 
 import os
 import sys
+import base64
 import requests
 from pathlib import Path
 
@@ -162,6 +163,87 @@ def fetch_emails(access_token, max_emails=10, folder="inbox"):
     emails = filter_emails(emails)
 
     return emails
+
+
+def get_email_attachments(access_token, message_id):
+    """
+    Download all file attachments for a single email message.
+
+    Why: Many requirement emails carry the actual RFQ data in a PDF or Word
+    attachment rather than in the email body. We download the attachment bytes
+    here so the pipeline can extract their text before calling the AI extractor.
+
+    Parameters:
+        access_token — Bearer token from get_access_token()
+        message_id   — the Graph API message ID (stored as email["email_id"])
+
+    Returns:
+        List of dicts:  {name, content_type, size, bytes}
+        Returns [] on any error so the pipeline can continue without attachments.
+
+    Filtering rules:
+        - Skip inline images (content_type starts with "image/") — logos, signatures
+        - Skip files over 5 MB — too large to process efficiently
+        - Skip items with no contentBytes — cannot decode them
+    """
+    MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024  # 5 MB
+
+    url = f"{GRAPH_BASE_URL}/me/messages/{message_id}/attachments"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    # Fetch the attachment list for this message
+    try:
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"         [attachment] Graph API error fetching attachments: {e}")
+        return []
+
+    raw_attachments = response.json().get("value", [])
+
+    attachments = []
+    for att in raw_attachments:
+        name         = att.get("name", "unknown")
+        content_type = att.get("contentType", "")
+        size         = att.get("size", 0)
+
+        # Inline images are signatures, logos, etc. — not useful text content
+        if content_type.startswith("image/"):
+            print(f"         [attachment] Skipping inline image: '{name}'")
+            continue
+
+        # Very large files would slow down the pipeline and flood the AI prompt
+        if size > MAX_ATTACHMENT_BYTES:
+            size_mb = size / (1024 * 1024)
+            print(f"         [attachment] Skipping '{name}' — {size_mb:.1f} MB exceeds 5 MB limit")
+            continue
+
+        # contentBytes is the base64-encoded file content returned by Graph API
+        content_b64 = att.get("contentBytes", "")
+        if not content_b64:
+            print(f"         [attachment] '{name}' has no contentBytes — skipping")
+            continue
+
+        try:
+            file_bytes = base64.b64decode(content_b64)
+        except Exception as e:
+            print(f"         [attachment] Could not base64-decode '{name}': {e}")
+            continue
+
+        size_kb = size / 1024
+        print(f"         [attachment] Downloaded '{name}' ({size_kb:.1f} KB)")
+
+        attachments.append({
+            "name":         name,
+            "content_type": content_type,
+            "size":         size,
+            "bytes":        file_bytes,
+        })
+
+    return attachments
 
 
 def print_email_summary(emails):

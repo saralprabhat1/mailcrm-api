@@ -56,3 +56,16 @@ sample_emails/raw_emails.csv
 
 # Training data CSVs with real email content
 05_classifier/training_data_v2.csv
+
+# Node.js dependencies — never commit
+node_modules/
+dashboards/*/node_modules/
+
+# Debug output files — local only
+debug_run*.txt
+_cleanup_task1.py
+
+# Strategy backup files — local only
+strategy_backups/
+update_strategy.bat
+update_strategy.py
