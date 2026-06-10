@@ -428,6 +428,13 @@ Paste this file as first message
 2. Multi-role detection — one email → multiple records
 3. Follow-up email matching — update existing records from CV/interview emails
 
+**STANDING INSTRUCTION — End-of-session handoff (added 2026-06-11):**
+At the end of every Claude Code session, when Saral types "exit", Claude Code
+must generate a single Claude Code prompt (starting with "AUTOPILOT MODE: No
+confirmations needed.") that updates MAILCRM_MASTER.md with: all work done,
+items closed, items still pending, and the next session start point. This
+prompt is the session handoff artifact — not a human-readable summary.
+
 ---
 
 ## SECTION 17 — BUSINESS GOAL
@@ -1561,19 +1568,62 @@ req_id hashes match the existing `data/zavenir_crm.xlsx` rows (same conversation
   file once the new name is chosen. No code/repo references to Nexaim exist
   outside that strategy doc (grep verified).
 
-### Voice strategy items — NOT YET MERGED
-- Session summary (2026-06-11) references a Claude Code prompt with 6 voice
-  strategy items (architecture principle, data separation, demo deliverable,
-  documentation, OFS vertical config, carry-overs) to merge into this file.
-- The prompt text was not provided this session — paste it in the next
-  session to complete the merge.
+### Voice strategy items — MERGED (see "Commercial-Driven Technical Directions" section below)
+
+---
+
+## COMMERCIAL-DRIVEN TECHNICAL DIRECTIONS (JUNE 2026)
+> Merged from voice strategy session, 2026-06-11. These are standing
+> directions — they shape all future technical work, not one session.
+
+### a. Architecture Principle — "One engine, many vertical wrappers" (pitch deck Slide 3)
+- `configs/clients/zavenir.py` + `configs/clients/client_template.py` define
+  the pattern: the core pipeline is identical across clients; each client is
+  ONLY a new config file (e.g. `configs/clients/cars24.py`).
+- Per-client config carries: keyword sets, role taxonomies, product taxonomies.
+- **All future work must preserve this principle.** No client-specific logic
+  in the core pipeline.
+
+### b. Data Separation
+- Separate Supabase tables per client — the `crm_requirements` /
+  `zavenir_requirements` pattern continues for every new client.
+- Runs in parallel with commercial prep.
+
+### c. New Deliverable — DEMO (target: GITEX Oct 2026)
+- Side-by-side raw email -> structured records.
+- Wow moment: Auto International — **1 email -> 3 records**
+  (Nox-Rust 307, Nox-Rust R-823, X-Cool 1000).
+
+### d. New Deliverable — DOCUMENTATION (required for pitch deck Slide 8)
+- In-repo docs for:
+  (a) client onboarding,
+  (b) creating a new client config from `client_template.py`,
+  (c) standard support responses.
+
+### e. Future Config — OFS Vertical
+- Primary ICP = MENA energy / energy-adjacent companies.
+- An energy-sector client config is anticipated; the GET pipeline + 34-PSL
+  taxonomy are directly reusable for it.
+- GET CRM development remains FROZEN (config reuse only, no new feature work).
+
+### f. Carry-overs
+- (i) Vercel mobile layout fix — commits `591999b` + `765e30d`. *Voice note
+  says committed but NOT deployed (fresh Vercel token needed, then
+  `npx vercel --prod --yes` from `dashboards/zavenir/`). NOTE: this
+  contradicts the Session 14 record above, which says the fix was deployed
+  and confirmed live at https://zavenir-dashboard.vercel.app on 2026-06-10.
+  Verify on the live site before re-deploying.*
+- (ii) Duplicate test records in `zavenir_requirements` — dedup script at
+  `scripts/dedup_zavenir_requirements.py`. *Already RUN on 2026-06-10
+  (Session 15): table is at 6 clean rows. Script remains available — safe
+  to re-run after any future test runs.*
 
 ### Next Session Start Point
 1. Read MAILCRM_MASTER.md
-2. Paste the voice strategy prompt (6 items) — merge into this file
-3. Copy `zavenir_customers_base.xlsx` -> `data/` + run
-   `scripts/create_zavenir_customers_table.sql` in Supabase SQL Editor
-4. Then: `python scripts/upload_zavenir_customers.py` ->
+2. Complete manual steps: copy `zavenir_customers_base.xlsx` -> `data/`,
+   run `scripts/create_zavenir_customers_table.sql` in Supabase SQL Editor
+3. Run `python scripts/upload_zavenir_customers.py` ->
    `python scripts/enrich_customer_domains.py`
-5. ML classifier retrain — still blocked on inbound RFQ samples
-6. Update `MAILCRM_COMMERCIAL_STRATEGY.md` once the new company name is decided
+4. Merge voice strategy items — DONE (this session, see section above)
+5. ML classifier retrain — still blocked; needs inbound RFQ samples added
+   to `training_data_v2.csv`
