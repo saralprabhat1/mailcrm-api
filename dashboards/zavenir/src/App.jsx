@@ -180,7 +180,7 @@ export default function App() {
 
           {/* Records table — hidden on mobile when detail panel is open */}
           <div className={[
-            'flex-col min-h-0 transition-all duration-200',
+            'flex-col min-h-0 min-w-0 transition-all duration-200',
             selected ? 'hidden md:flex md:flex-1' : 'flex flex-1',
           ].join(' ')}>
             <div className="px-4 pt-4 pb-2 flex-shrink-0 flex items-center justify-between">

@@ -30,6 +30,32 @@ function Section({ title, children }) {
   )
 }
 
+const ASSIGNED_CONF_STYLES = {
+  high: 'text-green-400 border-green-400/30 bg-green-400/10',
+  low:  'text-amber-400 border-amber-400/30 bg-amber-400/10',
+}
+
+function AssignedTo({ value, confidence }) {
+  if (isEmpty(value)) return null
+  const confClass = ASSIGNED_CONF_STYLES[(confidence ?? '').toLowerCase()] ??
+    'text-gray-400 border-gray-600 bg-gray-800'
+  return (
+    <div className="mb-3">
+      <div className="text-[10px] font-mono text-gray-600 uppercase tracking-widest mb-0.5">
+        Assigned To
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="text-sm text-gray-200 leading-snug font-sans">{value}</div>
+        {!isEmpty(confidence) && (
+          <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-widest ${confClass}`}>
+            {confidence}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ConfidenceMeter({ value }) {
   if (isEmpty(value)) return null
   const pct = Math.round(parseFloat(value) * 100)
@@ -118,6 +144,7 @@ export default function DetailPanel({ record, onClose }) {
           <Field label="Customer"          value={record.customer} />
           <Field label="Industry Segment"  value={record.industry_segment} />
           <Field label="Email Subject"     value={record.email_subject} />
+          <AssignedTo value={record.assigned_to} confidence={record.assigned_to_confidence} />
         </Section>
 
         <Section title="Product">
@@ -138,8 +165,17 @@ export default function DetailPanel({ record, onClose }) {
           <Field label="Next Action" value={record.next_action} />
         </Section>
 
+        {!isEmpty(record.conversation_timeline) && (
+          <Section title="Conversation Timeline">
+            <div className="text-[11px] font-mono text-gray-300 leading-relaxed whitespace-pre-wrap break-words">
+              {record.conversation_timeline}
+            </div>
+          </Section>
+        )}
+
         <div className="mt-2 pt-3 border-t border-border">
           <Field label="Req ID"       value={record.req_id}       mono />
+          <Field label="Sender Name"  value={record.sender_name} />
           <Field label="Sender Email" value={record.sender_email} mono />
         </div>
 

@@ -69,7 +69,7 @@ export default function RecordsTable({ records, loading, selectedId, onSelect })
   ]
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-4 pb-4">
+    <div className="flex flex-col flex-1 min-h-0 min-w-0 px-4 pb-4">
 
       {/* ── Filter row ── */}
       <div className="flex gap-2 mb-3 flex-shrink-0 flex-wrap">
@@ -103,7 +103,7 @@ export default function RecordsTable({ records, loading, selectedId, onSelect })
       </div>
 
       {/* ── Table ── */}
-      <div className="flex-1 overflow-y-auto rounded-lg border border-border min-h-0">
+      <div className="flex-1 overflow-auto rounded-lg border border-border min-h-0">
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 z-10 bg-surface">
             <tr className="border-b border-border">

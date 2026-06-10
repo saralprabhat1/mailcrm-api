@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS zavenir_requirements (
 
     -- Email metadata (set by pipeline runner, not AI)
     received_date       TEXT,
+    sender_name         TEXT,
     sender_email        TEXT,
     email_subject       TEXT,
 
@@ -42,6 +43,11 @@ CREATE TABLE IF NOT EXISTS zavenir_requirements (
 
     -- AI confidence score (0.0 – 1.0)
     llm_confidence      NUMERIC,
+
+    -- Phase 18 — auto-assignment + conversation timeline
+    assigned_to             TEXT,
+    assigned_to_confidence  TEXT,
+    conversation_timeline   TEXT,
 
     -- Row creation timestamp (set automatically by Supabase)
     created_at          TIMESTAMPTZ     DEFAULT NOW()

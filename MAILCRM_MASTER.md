@@ -1324,10 +1324,100 @@ Auto International: 1 record (pre-Phase 17, generic Nox-Rust) → **3 records** 
 
 ---
 
-### CURRENT PHASE: 17 COMPLETE
+---
+
+## UPDATE: 2026-06-10 (Session 14) — Deploy Blockers Resolved + Phase 18
+
+### Deploy Blockers from Session 13 — RESOLVED
+
+**1. Git author email mismatch (blocked Vercel auto-deploy from GitHub)**
+- Root cause: the `591999b` commit author email didn't match a verified email on the GitHub account linked to Vercel, so Vercel silently skipped auto-deploy on push.
+- Fix: `git config --global user.email "saral.prabhat1@gmail.com"` -> `git commit --amend --reset-author --no-edit` -> `git push --force-with-lease`.
+- Result: HEAD re-authored as `df409b5`, force-pushed to `saralprabhat1/mailcrm-api` main.
+
+**2. Mobile layout fix — deployed and confirmed live**
+- Deployed manually from `dashboards/zavenir/` with a fresh `VERCEL_TOKEN` (`npx vercel --prod --yes`).
+- Confirms commits `591999b` + `765e30d` (mobile layout fix) are live at https://zavenir-dashboard.vercel.app.
+
+**3. Desktop layout bug — detail pane cut off — FIXED**
+- Root cause: flex children had no `min-w-0`, so `whitespace-nowrap` table cells forced the records table past its flex-basis and pushed the detail pane off the right edge of the viewport.
+- Fix:
+  - `dashboards/zavenir/src/App.jsx` — added `min-w-0` to the records-table flex wrapper.
+  - `dashboards/zavenir/src/components/RecordsTable.jsx` — added `min-w-0` to the root div; `overflow-y-auto` -> `overflow-auto` on the table scroll container.
+- Built and deployed via `npx vercel --prod --yes` from `dashboards/zavenir/`.
+
+---
+
+### Phase 18 — COMPLETE: Forwarded Sender + Auto-Assign + Conversation Timeline
+
+Scope confined to the Zavenir-specific layer: `utils/zavenir_extractor.py`, `run_zavenir_parser.py`, `configs/clients/zavenir.py`, `scripts/*.sql`, `dashboards/zavenir/src/components/DetailPanel.jsx`. GET Global pipeline untouched.
+
+#### Feature 1 — Forwarded sender extraction
+- New regexes in `utils/zavenir_extractor.py`: `_FROM_LINE_RE`, `_FORWARD_CTX_RE`, `_NAME_EMAIL_ANGLE_RE`, `_NAME_EMAIL_MAILTO_RE`, `_BARE_EMAIL_RE`.
+- New functions: `_parse_from_value()`, `_find_forward_header_index()`, `extract_forwarded_sender(text)` — scans cleaned body text (line-by-line) for a `From:` line followed within 4 lines by `Sent:`/`Date:`/`To:`/`Subject:`, skipping any block whose email is `SENDER_FILTER` (tarora@zavenir.com).
+- `run_zavenir_parser.py`: per email, runs `email_parser.strip_html()` on the anchor email body (preserves line breaks), then `extract_forwarded_sender()`. If found, `sender_name`/`sender_email` = the forwarded customer. If not found, falls back to the Graph API `from` field — but if that's `tarora@zavenir.com`, both are set to `None` instead.
+- **Constraint verified**: `tarora@zavenir.com` does not appear as `sender_email` on any of the 6 test records (2 fell back to `None` rather than the forwarder's address — see Test Results below).
+
+#### Feature 2 — Auto-assign deal (`assigned_to`)
+- `_search_zavenir_emails()` now selects `toRecipients` and returns `to_recipients: [{name, address}, ...]` per email.
+- New regex `_ASSIGNMENT_PHRASES_RE` (please handle / assign(ed) to / over to you / your lead / take this / follow up / kindly handle / please action / please take / for your action / requesting you to).
+- New function `detect_assigned_to(forwarder_note, to_recipients)` (and `get_forwarder_note(text)` to isolate the text above the forward header): finds the first `to_recipients` address ending in `@zavenir.com` that isn't `tarora@zavenir.com` -> `assigned_to = "Name <email>"`. Confidence = `"high"` if assignment language is also present in the forwarder's note, `"low"` if only the recipient signal is present, `null` if no internal recipient (i.e. forwarded only to `saral.prabhat@outlook.com`).
+- `configs/clients/zavenir.py` `FIELDS`: added `assigned_to`, `assigned_to_confidence`.
+
+#### Feature 3 — Conversation timeline
+- `fetch_conversation()` now also returns `sender_name` per message; `stitch_thread()` prefixes each message with `[YYYY-MM-DD | Sender Name <email>]` (was `[YYYY-MM-DD | email]`).
+- `THREAD_SYSTEM_PROMPT` updated: instructs the model to also return a top-level `conversation_timeline` string — one line per thread message in the format `[Mon D | Sender Name | Company] -> summary`, lines joined with `\n`.
+- `_build_record()` / `_empty_record()` / `extract_zavenir_thread()`: `conversation_timeline` extracted once from the outer Groq response and copied onto every product record from that thread.
+- `configs/clients/zavenir.py` `FIELDS`: added `conversation_timeline`.
+
+#### Dashboard — `dashboards/zavenir/src/components/DetailPanel.jsx`
+- New "Assigned To" field (in the Enquiry section) with a confidence badge (green = high, amber = low).
+- New "Conversation Timeline" section — monospace, `whitespace-pre-wrap`, rendered only when non-empty.
+- New "Sender Name" field next to "Sender Email" in the footer block.
+- Built and deployed to https://zavenir-dashboard.vercel.app via `npx vercel --prod --yes` from `dashboards/zavenir/`.
+
+#### Schema changes
+- `scripts/create_zavenir_table.sql` updated (fresh-install schema): added `sender_name`, `assigned_to`, `assigned_to_confidence`, `conversation_timeline` (all `TEXT`).
+- **New file `scripts/alter_zavenir_table_phase18.sql`** — `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` migration for the *live* Supabase table. **Must be run manually in the Supabase SQL Editor before the next non-DRY_RUN pipeline run** — otherwise `_save_to_supabase()` will fail with `PGRST204` (unknown column) for the 4 new fields on every record (Python client cannot run DDL).
+
+#### Test Results — DRY_RUN parse of 4 emails / 6 product records (2026-06-10)
+
+req_id hashes match the existing `data/zavenir_crm.xlsx` rows (same conversationId -> same MD5 hash, only the date prefix changed from `20260609` to `20260610`).
+
+| req_id (hash) | Customer / Product | Before: sender_email | After: sender_name | After: sender_email | assigned_to | conversation_timeline |
+|---|---|---|---|---|---|---|
+| 5617F9 | Unominda / X-Clean 2070 BF | `tarora@zavenir.com` | — | `null` | `null` | 3-line summary (Mar 24 - May 7, all Tarul Arora — no embedded customer email in this thread) |
+| 8EAD0D | ELEMATIC INDIA PVT LTD / VCI Roll | `tarora@zavenir.com` | Tanwar Dhiraj | `Dhiraj.Tanwar@elematic.com` | `null` | 2-line summary (Jun 4 RFQ -> Jun 9 forwarded) |
+| 2ACFF3-01 | Auto International / Nox-Rust 307 | `tarora@zavenir.com` | Amitrajit Sinha | `amitrajitsinha@autointernational.co.in` | `null` | 10-line summary (May 20 - Jun 9 full negotiation) |
+| 2ACFF3-02 | Auto International / Nox-Rust R-823 | `tarora@zavenir.com` | Amitrajit Sinha | `amitrajitsinha@autointernational.co.in` | `null` | same 10-line thread summary |
+| 2ACFF3-03 | Auto International / X-Cool 1000 | `tarora@zavenir.com` | Amitrajit Sinha | `amitrajitsinha@autointernational.co.in` | `null` | same 10-line thread summary |
+| 9CB26E | Kapl Rohtak / Defoamer | `tarora@zavenir.com` | — | `null` | `null` | 1-line summary (Jun 9, Tarul Arora forwarded quotation) |
+
+**Observations:**
+- `tarora@zavenir.com` is gone from `sender_email` on all 6 records (constraint met). 4/6 resolved to the real customer contact (ELEMATIC, Auto International x3); 2/6 (Unominda, Kapl Rohtak) had no parseable `From:`/`Sent:` header block in the body — these look like Tarul forwarding her own prior quotations rather than a customer's email, so `sender_name`/`sender_email` correctly fall back to `null` rather than a wrong value.
+- `assigned_to` is `null` on all 6 because every email's `toRecipients` is only `saral.prabhat@outlook.com` (external monitoring) — exactly the "no internal recipient" case in the spec. The feature is wired correctly; it will populate once Tania starts cc'ing other `@zavenir.com` staff on forwards.
+- `conversation_timeline` populated on all 6 records with real `\n`-separated multi-line summaries, correctly attributing each thread message to a person + company (e.g. distinguishing Multitech Marketing as the channel partner vs. Auto International as the customer).
+
+#### Files Changed This Session
+
+| File | Change |
+|---|---|
+| `utils/zavenir_extractor.py` | Forwarded-sender regexes + `extract_forwarded_sender`, `get_forwarder_note`, `detect_assigned_to`; `fetch_conversation`/`stitch_thread` now carry `sender_name`; `THREAD_SYSTEM_PROMPT` + `_build_record`/`_empty_record`/`extract_zavenir_thread` add `conversation_timeline` |
+| `run_zavenir_parser.py` | `_search_zavenir_emails()` selects `toRecipients`; per-email Phase 18 block computes `sender_name`/`sender_email`/`assigned_to`/`assigned_to_confidence`; `_save_to_supabase()` writes the 4 new columns |
+| `configs/clients/zavenir.py` | `FIELDS` += `sender_name`, `assigned_to`, `assigned_to_confidence`, `conversation_timeline` |
+| `scripts/create_zavenir_table.sql` | Fresh-install schema += 4 new `TEXT` columns |
+| `scripts/alter_zavenir_table_phase18.sql` | New — live-table migration (manual, Supabase SQL Editor) |
+| `dashboards/zavenir/src/components/DetailPanel.jsx` | "Assigned To" field + confidence badge, "Conversation Timeline" section, "Sender Name" field |
+| `dashboards/zavenir/src/App.jsx`, `RecordsTable.jsx` | Desktop overflow fix (`min-w-0`, `overflow-auto`) |
+
+---
+
+### CURRENT PHASE: 18 COMPLETE
 
 ### Next Session Start Point
 1. Read MAILCRM_MASTER.md
-2. Clean duplicate records in `zavenir_requirements` Supabase table (multiple test runs created duplicates — deduplicate by `req_id`)
-3. MSAL token refresh mid-run hardening (`run_zavenir_parser.py` — re-acquire token before each `fetch_conversation()` call)
-4. ML classifier retrain — `training_data_v2.csv` has 36 "relevant" samples but all are outbound GET emails; need inbound RFQ examples added before retraining
+2. **Run `scripts/alter_zavenir_table_phase18.sql` in Supabase SQL Editor** (prerequisite — live table is missing `sender_name`, `assigned_to`, `assigned_to_confidence`, `conversation_timeline`)
+3. Re-run `run_zavenir_parser.py` (DRY_RUN=False) for a full production pass with Phase 18 fields
+4. Clean duplicate records in `zavenir_requirements` Supabase table (multiple test runs created duplicates — deduplicate by `req_id`)
+5. MSAL token refresh mid-run hardening (`run_zavenir_parser.py` — re-acquire token before each `fetch_conversation()` call)
+6. ML classifier retrain — `training_data_v2.csv` has 36 "relevant" samples but all are outbound GET emails; need inbound RFQ examples added before retraining

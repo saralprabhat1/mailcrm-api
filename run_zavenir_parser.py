@@ -55,7 +55,10 @@ from utils.auth import get_access_token
 from email_reader import fetch_emails, get_email_attachments
 import parser as email_parser
 from utils.attachment_extractor import extract_text_from_attachment
-from utils.zavenir_extractor import extract_zavenir_thread, fetch_conversation, stitch_thread
+from utils.zavenir_extractor import (
+    extract_zavenir_thread, fetch_conversation, stitch_thread,
+    extract_forwarded_sender, get_forwarder_note, detect_assigned_to,
+)
 from configs.clients.zavenir import FIELDS, EXCEL_OUTPUT, SUPABASE_TABLE, SENDER_FILTER
 
 # ---------------------------------------------------------------------------
@@ -109,7 +112,7 @@ def _search_zavenir_emails(token: str, max_results: int = 25) -> list:
     Returns a list of dicts in the same format as fetch_emails().
     """
     fields = ",".join([
-        "id", "subject", "receivedDateTime", "from",
+        "id", "subject", "receivedDateTime", "from", "toRecipients",
         "body", "bodyPreview", "isRead", "hasAttachments", "importance",
         "conversationId", "conversationIndex",   # Phase 17 discovery
     ])
@@ -137,12 +140,20 @@ def _search_zavenir_emails(token: str, max_results: int = 25) -> list:
     emails = []
     for item in raw_emails:
         sender_info  = item.get("from", {}).get("emailAddress", {})
+        to_recipients = [
+            {
+                "name":    r.get("emailAddress", {}).get("name", ""),
+                "address": r.get("emailAddress", {}).get("address", ""),
+            }
+            for r in item.get("toRecipients", [])
+        ]
         emails.append({
             "email_id":        item.get("id", ""),
             "received_date":   item.get("receivedDateTime", ""),
             "subject":         item.get("subject", "(No subject)"),
             "sender_name":     sender_info.get("name", "Unknown"),
             "sender_email":    sender_info.get("address", "Unknown"),
+            "to_recipients":   to_recipients,                               # Phase 18
             "body_preview":    item.get("bodyPreview", ""),
             "body_content":    item.get("body", {}).get("content", ""),
             "body_type":       item.get("body", {}).get("contentType", "text"),
@@ -338,6 +349,35 @@ def run_pipeline(max_emails: int = 10) -> dict:
                 failed += 1
                 continue
 
+            # ------------------------------------------------------------------
+            # Phase 18 — Forwarded sender extraction + auto-assignment
+            #
+            # All Zavenir emails arrive forwarded from tarora@zavenir.com to
+            # saral.prabhat@outlook.com. The real customer is named in a
+            # "From:" header inside the forwarded block, not in the Graph API
+            # `from` field. Use that as sender_name/sender_email instead, and
+            # never let SENDER_FILTER (Tania's address) appear as the sender.
+            # ------------------------------------------------------------------
+            if email.get("body_type") == "html":
+                anchor_clean_text = email_parser.strip_html(email.get("body_content", ""))
+            else:
+                anchor_clean_text = email.get("body_content", "")
+
+            orig_name, orig_email = extract_forwarded_sender(anchor_clean_text)
+            if orig_email:
+                sender_name  = orig_name or orig_email.split("@")[0]
+                sender_email = orig_email
+            else:
+                sender_name  = email.get("sender_name", "")
+                sender_email = email.get("sender_email", "")
+                if sender_email.lower() == SENDER_FILTER.lower():
+                    sender_name, sender_email = None, None
+
+            forwarder_note = get_forwarder_note(anchor_clean_text)
+            assigned_to, assigned_to_confidence = detect_assigned_to(
+                forwarder_note, email.get("to_recipients", [])
+            )
+
             # --- Assemble one CRM record per extracted product ---
             # Use conversationId as the hash base so all products from the same
             # thread share a common REQ-…-XXXXXX- prefix and differ only by index.
@@ -350,11 +390,14 @@ def run_pipeline(max_emails: int = 10) -> dict:
 
                 req_id = _make_req_id(thread_key, prod_idx)
                 record = {
-                    "req_id":        req_id,
-                    "status":        "New",
-                    "received_date": email.get("received_date", "")[:10],
-                    "sender_email":  email.get("sender_email", ""),
-                    "email_subject": email.get("subject", ""),
+                    "req_id":                 req_id,
+                    "status":                 "New",
+                    "received_date":          email.get("received_date", "")[:10],
+                    "sender_name":            sender_name,
+                    "sender_email":           sender_email,
+                    "email_subject":          email.get("subject", ""),
+                    "assigned_to":            assigned_to,
+                    "assigned_to_confidence": assigned_to_confidence,
                 }
                 record.update(extracted)
 
@@ -533,11 +576,15 @@ def _save_to_supabase(records: list) -> int:
             "delivery_date":    record.get("delivery_date"),
             "status":           record.get("status", "New"),
             "received_date":    record.get("received_date"),
+            "sender_name":      record.get("sender_name"),
             "sender_email":     record.get("sender_email"),
             "email_subject":    record.get("email_subject"),
             "email_summary":    record.get("email_summary"),
             "next_action":      record.get("next_action"),
             "llm_confidence":   _safe_float(record.get("llm_confidence")),
+            "assigned_to":              record.get("assigned_to"),
+            "assigned_to_confidence":   record.get("assigned_to_confidence"),
+            "conversation_timeline":    record.get("conversation_timeline"),
         }
 
         # Drop None values so Supabase does not overwrite existing data with NULL

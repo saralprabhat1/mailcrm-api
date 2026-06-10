@@ -55,12 +55,17 @@ INDUSTRY_SEGMENTS = [
 # CRM SCHEMA — field names used in the Excel output and Supabase table.
 #
 # System-filled fields (pipeline sets these, not the AI):
-#   req_id, status, received_date, sender_email, email_subject
+#   req_id, status, received_date, sender_name, sender_email, email_subject
 #
 # AI-extracted fields (Groq fills these from the email body):
 #   customer, industry_segment, product_category, product_brand,
 #   quantity, quantity_unit, location, delivery_date,
 #   email_summary, next_action, llm_confidence
+#
+# Phase 18 fields:
+#   sender_name, assigned_to, assigned_to_confidence — derived from the
+#       forwarded-email header and toRecipients (run_zavenir_parser.py)
+#   conversation_timeline — AI-extracted sequential thread summary
 # ---------------------------------------------------------------------------
 
 FIELDS = [
@@ -75,11 +80,15 @@ FIELDS = [
     "delivery_date",
     "status",
     "received_date",
+    "sender_name",
     "sender_email",
     "email_subject",
     "email_summary",
     "next_action",
     "llm_confidence",
+    "assigned_to",
+    "assigned_to_confidence",
+    "conversation_timeline",
 ]
 
 # ---------------------------------------------------------------------------
