@@ -1378,7 +1378,7 @@ Scope confined to the Zavenir-specific layer: `utils/zavenir_extractor.py`, `run
 
 #### Schema changes
 - `scripts/create_zavenir_table.sql` updated (fresh-install schema): added `sender_name`, `assigned_to`, `assigned_to_confidence`, `conversation_timeline` (all `TEXT`).
-- **New file `scripts/alter_zavenir_table_phase18.sql`** — `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` migration for the *live* Supabase table. **Must be run manually in the Supabase SQL Editor before the next non-DRY_RUN pipeline run** — otherwise `_save_to_supabase()` will fail with `PGRST204` (unknown column) for the 4 new fields on every record (Python client cannot run DDL).
+- **New file `scripts/alter_zavenir_table_phase18.sql`** — `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` migration for the *live* Supabase table. **Status: RUN — live `zavenir_requirements` table now has `sender_name`, `assigned_to`, `assigned_to_confidence`, `conversation_timeline` (all `TEXT`).** Ready for a non-DRY_RUN pipeline run.
 
 #### Test Results — DRY_RUN parse of 4 emails / 6 product records (2026-06-10)
 
@@ -1410,14 +1410,33 @@ req_id hashes match the existing `data/zavenir_crm.xlsx` rows (same conversation
 | `dashboards/zavenir/src/components/DetailPanel.jsx` | "Assigned To" field + confidence badge, "Conversation Timeline" section, "Sender Name" field |
 | `dashboards/zavenir/src/App.jsx`, `RecordsTable.jsx` | Desktop overflow fix (`min-w-0`, `overflow-auto`) |
 
+#### Commit: `1b8bde8` — pushed to `saralprabhat1/mailcrm-api` main
+
 ---
 
-### CURRENT PHASE: 18 COMPLETE
+### Customer Master List — `zavenir_customers_base.xlsx` (external artifact, 633 customers)
+
+- Built in a separate claude.ai chat session (not this repo/session) — a master list of **633 Zavenir customers**.
+- **Current location:** `C:\Users\Saral\Downloads\zavenir_customers_base.xlsx` on Saral's machine — **not yet copied into this repo**.
+- **Plan:** copy to `data/zavenir_customers_base.xlsx`, create a new `zavenir_customers` Supabase table, and upload this list as the seed/reference customer master (used for matching incoming enquiries to known customers, and as the base for domain enrichment below).
+
+### Backlog — Customer Domain Enrichment (new)
+
+- Enrich the 633-customer master list with each customer's company domain/website.
+- Purpose: once domains are known, incoming enquiry sender domains (Feature 1's `sender_email`) can be matched against the customer master for de-dup/linking, and `assigned_to`/customer-matching logic can be made domain-aware instead of name-based.
+- Implementation: a domain enrichment script (TBD — likely a lookup/scrape step run once over the 633-row list, output added as a column before/at Supabase upload).
+
+---
+
+### CURRENT PHASE: 18 COMPLETE (commit `1b8bde8`, pushed)
 
 ### Next Session Start Point
 1. Read MAILCRM_MASTER.md
-2. **Run `scripts/alter_zavenir_table_phase18.sql` in Supabase SQL Editor** (prerequisite — live table is missing `sender_name`, `assigned_to`, `assigned_to_confidence`, `conversation_timeline`)
-3. Re-run `run_zavenir_parser.py` (DRY_RUN=False) for a full production pass with Phase 18 fields
-4. Clean duplicate records in `zavenir_requirements` Supabase table (multiple test runs created duplicates — deduplicate by `req_id`)
-5. MSAL token refresh mid-run hardening (`run_zavenir_parser.py` — re-acquire token before each `fetch_conversation()` call)
+2. Copy `C:\Users\Saral\Downloads\zavenir_customers_base.xlsx` -> `data/zavenir_customers_base.xlsx` (do this **before** the Supabase upload task below)
+3. Create `zavenir_customers` table in Supabase (new DDL script, modeled on `scripts/create_zavenir_table.sql`) and upload the 633-row customer master
+4. Build the Customer Domain Enrichment script (see Backlog above) — enrich the 633 customers with company domains
+5. Re-run `run_zavenir_parser.py` (DRY_RUN=False) for a full production pass with Phase 18 fields — Supabase schema is live and ready
+6. Clean duplicate records in `zavenir_requirements` Supabase table (multiple test runs created duplicates — deduplicate by `req_id`)
+7. MSAL token refresh mid-run hardening (`run_zavenir_parser.py` — re-acquire token before each `fetch_conversation()` call)
+8. ML classifier retrain — `training_data_v2.csv` has 36 "relevant" samples but all are outbound GET emails; need inbound RFQ examples added before retraining
 6. ML classifier retrain — `training_data_v2.csv` has 36 "relevant" samples but all are outbound GET emails; need inbound RFQ examples added before retraining
