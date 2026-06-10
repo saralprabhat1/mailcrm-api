@@ -1,6 +1,7 @@
 // App — Zavenir Daubert pipeline dashboard.
 // Layout: fixed header / StatsBar / StatusBar on the left pane,
 //         RecordsTable in the main pane, DetailPanel slides in on row click.
+// Mobile layout: list-only on mobile, detail on tap
 
 import { useState, useEffect, useCallback } from 'react'
 import { fetchStats, fetchRecords } from './hooks/useApi'
