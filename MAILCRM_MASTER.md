@@ -1439,4 +1439,92 @@ req_id hashes match the existing `data/zavenir_crm.xlsx` rows (same conversation
 6. Clean duplicate records in `zavenir_requirements` Supabase table (multiple test runs created duplicates — deduplicate by `req_id`)
 7. MSAL token refresh mid-run hardening (`run_zavenir_parser.py` — re-acquire token before each `fetch_conversation()` call)
 8. ML classifier retrain — `training_data_v2.csv` has 36 "relevant" samples but all are outbound GET emails; need inbound RFQ examples added before retraining
-6. ML classifier retrain — `training_data_v2.csv` has 36 "relevant" samples but all are outbound GET emails; need inbound RFQ examples added before retraining
+
+---
+
+## UPDATE: 2026-06-10 (Session 15) — Backlog Clearance: Customer Master Scripts + Production Run + Dedup + Token Hardening
+
+### MSAL token hardening — DONE
+- `run_zavenir_parser.py`: imports `get_access_token_or_none` from `utils/auth.py`
+  and calls it at the **start of each email iteration**, before `fetch_conversation()`.
+- `acquire_token_silent()` is cheap — returns the cached token if still valid,
+  refreshes only near expiry. If refresh fails, the loop keeps the existing
+  token and warns instead of crashing.
+- Verified live in the production run: "Cache loaded / Token saved" printed
+  before each of the 4 emails.
+
+### Production run — DONE (DRY_RUN=False, Phase 18 fields live)
+- 4 Zavenir emails found, **6 product records** extracted and saved to
+  Excel + Supabase (Unominda X-Clean 2070 BF, ELEMATIC VCI Roll,
+  Auto International Nox-Rust 307 / Nox-Rust R-823 / X-Cool 1000,
+  KAPL Rohtak ADDITIVE D). req_ids: `REQ-20260610-*`.
+- Phase 18 columns (`sender_name`, `assigned_to`, `assigned_to_confidence`,
+  `conversation_timeline`) written to Supabase for the first time.
+- **Observation:** `fetch_conversation()` returned only 1 email per thread this
+  run (Auto International thread previously had 10). Extraction still recovered
+  all 3 products from the quoted text inside the forward, but thread context is
+  thinner than the Phase 18 DRY_RUN test. Watch on next run — possibly archived
+  messages no longer matching the conversationId `$filter`.
+
+### Dedup — DONE (`scripts/dedup_zavenir_requirements.py`, new)
+- Key insight: req_id = `REQ-YYYYMMDD-HASH-NN` where the **date prefix is the
+  run date** — re-running the same conversation on a new day creates a new
+  req_id. So dedup keys on the stable `HASH-NN` part, keeps the row with the
+  newest date prefix (ties: `created_at`, then `id`), deletes the rest.
+- Run result: 16 rows -> 10 (six June-9 date-prefix dupes deleted).
+- 4 remaining pre-Phase-17 rows (hashed on `email_id`, not `conversationId` —
+  e.g. generic "Nox-Rust" single record) were the same 4 enquiries; deleted
+  manually by id. **`zavenir_requirements` is now exactly 6 clean rows**, all
+  from today's Phase-18-enriched run.
+- `data/zavenir_crm.xlsx` deduped the same way (16 -> 6 rows), header
+  formatting re-applied. Excel and Supabase now mirror each other exactly.
+- Script is safe to re-run any time (no dupes -> zero deletions).
+
+### Customer master scripts — WRITTEN (blocked on 2 manual steps)
+- **`scripts/create_zavenir_customers_table.sql`** (new) — DDL for
+  `zavenir_customers`: `customer_name` (UNIQUE NOT NULL, upsert key), `domain`,
+  `domain_source` ('xlsx'|'email'|'clearbit'), city/state/country/address,
+  `industry_segment`, contact fields, `notes`, `source`, timestamps; index on
+  `domain` (the enquiry-matching lookup path).
+- **`scripts/upload_zavenir_customers.py`** (new) — reads
+  `data/zavenir_customers_base.xlsx`, normalizes whatever headers the file has
+  (maps variants: "Company Name"/"Customer"/"Account" -> `customer_name`,
+  "Website"/"URL" -> `domain`, etc.), prints mapped + skipped columns,
+  cleans/dedupes by customer_name, batch-upserts to Supabase
+  (on_conflict=customer_name, 100/batch). Safe to re-run.
+- **`scripts/enrich_customer_domains.py`** (new) — for each row missing a
+  domain: (1) derive from contact email if business domain (free, exact);
+  (2) else Clearbit Autocomplete API (free, keyless — endpoint verified
+  working this session) with a name-similarity guard (difflib >= 0.55 after
+  stripping legal suffixes) so wrong-company domains are never written;
+  (3) else leave blank + list for manual lookup. Writes back to the xlsx
+  (checkpoint every 25 lookups) and updates Supabase as it goes.
+- **BLOCKED — two manual steps before these can run:**
+  1. `data/zavenir_customers_base.xlsx` was **not found anywhere on this
+     machine** (searched data/, Downloads, user profile) — copy it in first.
+  2. Run `scripts/create_zavenir_customers_table.sql` in the Supabase SQL
+     Editor (no Postgres connection string in .env, so DDL is manual —
+     confirmed table does not exist yet via REST probe).
+  Then run: `python scripts/upload_zavenir_customers.py` followed by
+  `python scripts/enrich_customer_domains.py`.
+
+### Files changed this session
+| File | Change |
+|---|---|
+| `run_zavenir_parser.py` | Per-email silent token re-acquire before `fetch_conversation()` |
+| `scripts/dedup_zavenir_requirements.py` | New — HASH-NN dedup, keep latest |
+| `scripts/create_zavenir_customers_table.sql` | New — `zavenir_customers` DDL |
+| `scripts/upload_zavenir_customers.py` | New — column-adaptive xlsx -> Supabase upload |
+| `scripts/enrich_customer_domains.py` | New — email + Clearbit domain enrichment |
+| `data/zavenir_crm.xlsx` | Deduped 16 -> 6 rows (not committed — data/ is gitignored) |
+
+### CURRENT PHASE: 18 complete + backlog cleared (except customer-master upload, blocked on manual steps)
+
+### Next Session Start Point
+1. Read MAILCRM_MASTER.md
+2. Copy `zavenir_customers_base.xlsx` -> `data/zavenir_customers_base.xlsx`
+3. Run `scripts/create_zavenir_customers_table.sql` in Supabase SQL Editor
+4. `python scripts/upload_zavenir_customers.py` — upload the 633-row master
+5. `python scripts/enrich_customer_domains.py` — fill missing domains
+6. Check `fetch_conversation()` thread depth (returned 1 email/thread this run vs 10 previously — see Observation above)
+7. ML classifier retrain — `training_data_v2.csv` needs inbound RFQ examples added before retraining

@@ -51,7 +51,7 @@ load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 # IMPORTS — shared utilities (read-only; we never modify these files)
 # ---------------------------------------------------------------------------
 
-from utils.auth import get_access_token
+from utils.auth import get_access_token, get_access_token_or_none
 from email_reader import fetch_emails, get_email_attachments
 import parser as email_parser
 from utils.attachment_extractor import extract_text_from_attachment
@@ -288,6 +288,21 @@ def run_pipeline(max_emails: int = 10) -> dict:
 
         print(f"[{i}/{len(zavenir_emails)}] {subject[:55]}")
         print(f"           From: {sender}")
+
+        # ------------------------------------------------------------------
+        # Phase 18 hardening — re-acquire the access token before each email.
+        # Why: Groq Retry-After waits can add up to 80+ minutes across a run,
+        # which outlives the ~1 hour access token. fetch_conversation() would
+        # then get a 401 and silently fall back to the single email body,
+        # losing the whole thread. acquire_token_silent() is cheap — it
+        # returns the cached token if still valid and only refreshes when
+        # the token is near expiry.
+        # ------------------------------------------------------------------
+        fresh_token = get_access_token_or_none()
+        if fresh_token:
+            token = fresh_token
+        else:
+            print("           WARNING: token refresh failed — using existing token.")
 
         try:
             # ------------------------------------------------------------------
