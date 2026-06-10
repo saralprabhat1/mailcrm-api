@@ -1528,3 +1528,52 @@ req_id hashes match the existing `data/zavenir_crm.xlsx` rows (same conversation
 5. `python scripts/enrich_customer_domains.py` — fill missing domains
 6. Check `fetch_conversation()` thread depth (returned 1 email/thread this run vs 10 previously — see Observation above)
 7. ML classifier retrain — `training_data_v2.csv` needs inbound RFQ examples added before retraining
+
+---
+
+## UPDATE: 2026-06-11 (Session 16) — fetch_conversation() Investigation Closed + Status Check
+
+### fetch_conversation() thread depth — RESOLVED, NOT A BUG
+- Read-only Graph API diagnostic run against the Auto International thread:
+  - `$filter=conversationId eq '...'` on `/me/messages` returns HTTP 200 with
+    exactly **1 message** — the single `FW:` email from tarora@zavenir.com.
+  - Explicit per-folder check: inbox = 1, archive = 0, deleteditems = 0.
+- **Conclusion:** the mailbox only ever contains ONE message per Zavenir
+  conversation — Tania forwards each thread once. The full negotiation history
+  (May 20 – Jun 9) exists only as **quoted text inside that one forward**.
+- The "10-line conversation_timeline" from the Phase 18 test was the LLM
+  reading the quoted chain inside the single email body — never 10 separate
+  Graph messages. `fetch_conversation()` is correct; "Thread: 1 email(s)" is
+  the expected steady state for this mailbox. Thread intelligence continues to
+  work because `stitch_thread()` passes the full body (quoted chain included).
+- Watch-list item closed. No code change needed.
+
+### Customer master — still blocked (re-verified this session)
+- `data/zavenir_customers_base.xlsx` — still not present on this machine.
+- `zavenir_customers` Supabase table — still does not exist (REST probe: PGRST205).
+- Both manual steps remain with Saral; scripts are ready and committed.
+
+### Company rename — Nex-Aim RETIRED
+- Nex-Aim / nexaim.ai retired as company name (conflicts with a football club).
+- New name: in progress, not yet decided.
+- `MAILCRM_COMMERCIAL_STRATEGY.md` still says "Brand name: Nex-Aim locked" +
+  nexaim.ai domain purchase plan — **stale, do not act on it**. Update that
+  file once the new name is chosen. No code/repo references to Nexaim exist
+  outside that strategy doc (grep verified).
+
+### Voice strategy items — NOT YET MERGED
+- Session summary (2026-06-11) references a Claude Code prompt with 6 voice
+  strategy items (architecture principle, data separation, demo deliverable,
+  documentation, OFS vertical config, carry-overs) to merge into this file.
+- The prompt text was not provided this session — paste it in the next
+  session to complete the merge.
+
+### Next Session Start Point
+1. Read MAILCRM_MASTER.md
+2. Paste the voice strategy prompt (6 items) — merge into this file
+3. Copy `zavenir_customers_base.xlsx` -> `data/` + run
+   `scripts/create_zavenir_customers_table.sql` in Supabase SQL Editor
+4. Then: `python scripts/upload_zavenir_customers.py` ->
+   `python scripts/enrich_customer_domains.py`
+5. ML classifier retrain — still blocked on inbound RFQ samples
+6. Update `MAILCRM_COMMERCIAL_STRATEGY.md` once the new company name is decided
